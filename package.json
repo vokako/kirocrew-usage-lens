@@ -1,0 +1,20 @@
+{
+  "name": "@kirocrew/usage-lens-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test:backend": "python3 backend/selftest.py",
+    "check": "npm run typecheck && npm run build && npm run test:backend"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.12",
+    "esbuild": "0.25.12",
+    "typescript": "5.6.3"
+  }
+}

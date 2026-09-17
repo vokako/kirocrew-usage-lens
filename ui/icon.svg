@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24"
+     fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+  <!-- A lens over three bars: usage, magnified. Stroked with currentColor so the
+       dashboard's nav tints it like every other icon. -->
+  <path d="M3 20h18" />
+  <rect x="4.5" y="12.5" width="3.2" height="5" rx="0.8" />
+  <rect x="10.4" y="9" width="3.2" height="8.5" rx="0.8" />
+  <rect x="16.3" y="14" width="3.2" height="3.5" rx="0.8" />
+  <circle cx="15.2" cy="6.4" r="4.1" />
+  <path d="M18.3 9.5 21 12.2" />
+</svg>

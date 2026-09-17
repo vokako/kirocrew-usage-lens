@@ -1,0 +1,49 @@
+{
+  "name": "usage-lens",
+  "displayName": "Usage Lens",
+  "version": "0.1.0",
+  "description": "See where your Kiro credits actually go. Usage Lens reads the gateway's own per-turn usage shards and breaks the spend down by model, surface, agent, scheduled job, and session — hour by hour or day by day — so a repricing, a runaway cron, or a context-bloated session shows up as a shape on a chart instead of a surprise at the end of the month.",
+  "author": "Kiro Crew community",
+  "license": "MIT",
+  "tags": [
+    "usage",
+    "cost",
+    "credits",
+    "analytics",
+    "observability"
+  ],
+  "highlights": [
+    "Credits broken down by model, surface, agent, cron job, or session — switch dimension without reloading",
+    "Hourly or daily granularity over 1, 3, 7, 14, or 30 days, with every figure compared against the preceding window of equal length",
+    "Per-job rollup for scheduled work: a cron that starts a fresh session per run is still one row, not hundreds",
+    "Unit-cost trend (credits per turn) separates a price change from doing more work",
+    "Automatic flag when a model's credits-per-turn jumps by half or more against the prior window",
+    "Reads only the local usage shards the gateway already writes — no account linking, no network calls, no writes"
+  ],
+  "defaultEnabled": false,
+  "permissions": {
+    "api": [
+      "/api/apps/usage-lens"
+    ],
+    "events": [],
+    "storage": false,
+    "cron": false,
+    "network": false
+  },
+  "backend": {
+    "hooks": {
+      "routes": "backend.routes:register_routes"
+    }
+  },
+  "ui": {
+    "entry": "index.mjs",
+    "pages": [
+      {
+        "route": "/usage-lens",
+        "label": "Usage Lens",
+        "iconUrl": "icon.svg"
+      }
+    ]
+  },
+  "iconPath": "ui/icon.svg"
+}
