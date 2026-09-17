@@ -1,5 +1,5 @@
 node_modules/
 out/
 __pycache__/
-test/fixture.json
-test/.bundle.mjs
+tests/fixture.json
+tests/.bundle.mjs

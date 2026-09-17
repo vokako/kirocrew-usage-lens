@@ -1,0 +1,122 @@
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  backend:
+    # The backend is stdlib-only and runs inside whatever interpreter the user's
+    # gateway has, so it is tested across the range rather than on one version.
+    # 3.9 is the floor: `zoneinfo` arrives there, and it is the version that does
+    # NOT accept a `Z`-suffixed timestamp in `fromisoformat` — the reason the
+    # reader normalises one itself.
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.9', '3.11', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Assert no third-party imports crept into the backend
+        run: |
+          python3 - <<'PY'
+          import ast, pathlib, sys
+          allowed = {
+              'annotations', 'argparse', 'collections', 'contextlib', 'datetime', 'json',
+              'logging', 'math', 'os', 'pathlib', 're', 'sys', 'time', 'typing', 'zoneinfo',
+              'aiohttp', 'kiro_crew', 'usage_store',
+          }
+          bad = []
+          for path in pathlib.Path('backend').glob('*.py'):
+              tree = ast.parse(path.read_text())
+              for node in ast.walk(tree):
+                  if isinstance(node, ast.Import):
+                      names = [a.name.split('.')[0] for a in node.names]
+                  elif isinstance(node, ast.ImportFrom):
+                      names = [(node.module or '').split('.')[0]]
+                  else:
+                      continue
+                  for name in names:
+                      if name and name not in allowed:
+                          bad.append(f'{path}:{node.lineno}: {name}')
+          if bad:
+              print('\n'.join(bad)); sys.exit(1)
+          print('backend imports are stdlib + aiohttp + kiro_crew only')
+          PY
+      - run: python3 -m unittest discover -s tests -v
+
+  frontend:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['20', '22']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+      - name: Assert the committed ui/index.mjs matches src/
+        # ui/index.mjs is a TRACKED build artifact: the dashboard loads it directly,
+        # so a stale one ships a page that does not match the source in the repo.
+        run: git diff --exit-code -- ui/index.mjs
+      - name: Frontend tests (synthetic fixture — CI has no usage shards)
+        run: |
+          python3 tests/fixture.py
+          node --test tests/frontend.test.mjs
+
+  manifest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Manifest and registry sanity
+        run: |
+          python3 - <<'PY'
+          import json, pathlib, sys
+          errors = []
+          app = json.loads(pathlib.Path('app.json').read_text())
+          for field in ('name', 'version', 'displayName', 'description'):
+              if not app.get(field):
+                  errors.append(f'app.json: missing required field {field}')
+          for page in app.get('ui', {}).get('pages', []):
+              for field in ('route', 'label'):
+                  if not page.get(field):
+                      errors.append(f'app.json: ui page missing {field}')
+          entry = app.get('ui', {}).get('entry')
+          if entry and not (pathlib.Path('ui') / entry).is_file():
+              errors.append(f'app.json: ui.entry {entry!r} does not exist under ui/')
+          icon = app.get('iconPath')
+          if icon and not pathlib.Path(icon).is_file():
+              errors.append(f'app.json: iconPath {icon!r} does not exist')
+          hook = app.get('backend', {}).get('hooks', {}).get('routes', '')
+          if hook:
+              module, _, func = hook.partition(':')
+              path = pathlib.Path(module.replace('.', '/') + '.py')
+              if not path.is_file():
+                  errors.append(f'app.json: backend hook module {path} does not exist')
+              elif f'def {func}' not in path.read_text():
+                  errors.append(f'app.json: backend hook {hook} has no {func}()')
+          registry = json.loads(pathlib.Path('app-registry.json').read_text())
+          if not isinstance(registry, list) or not registry:
+              errors.append('app-registry.json: expected a non-empty list')
+          else:
+              for row in registry:
+                  for field in ('name', 'gitUrl', 'branch'):
+                      if not row.get(field):
+                          errors.append(f'app-registry.json: entry missing {field}')
+                  if row.get('name') != app['name']:
+                      errors.append('app-registry.json: name does not match app.json')
+          if errors:
+              print('\n'.join(errors)); sys.exit(1)
+          print(f"{app['name']} v{app['version']} manifest and registry are consistent")
+          PY

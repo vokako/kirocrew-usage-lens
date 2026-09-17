@@ -37,6 +37,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import re
 import time
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
@@ -186,7 +187,16 @@ def _cron_names(home: Path) -> dict[str, str]:
         registry = json.loads((home / "crons.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return out
-    for job in registry.get("jobs") or []:
+    # The registry's root is an object with a "jobs" list, but a hand-edited or
+    # half-written file can be a list, a string, or null — none of which have .get.
+    if not isinstance(registry, dict):
+        return out
+    jobs = registry.get("jobs")
+    if not isinstance(jobs, list):
+        return out
+    for job in jobs:
+        if not isinstance(job, dict):
+            continue
         job_id = str(job.get("id") or "")
         if job_id:
             out[job_id] = str(job.get("name") or "") or job_id
@@ -211,7 +221,9 @@ def _session_titles(home: Path, slots: set[str]) -> dict[str, str]:
             try:
                 with path.open("r", encoding="utf-8", errors="replace") as handle:
                     meta = json.loads(handle.readline() or "{}")
-                title = str(meta.get("title") or "").strip()
+                # A valid JSON first line need not be an object: `null`, a number, or
+                # a bare string all parse, and none of them have .get.
+                title = str(meta.get("title") or "").strip() if isinstance(meta, dict) else ""
             except (OSError, ValueError):
                 title = ""
             if title:
@@ -268,8 +280,38 @@ def _job_of(slot: str, surface: str, names: dict[str, str]) -> str:
     return name if name else f"{job_id} (deleted)"
 
 
+_SHARD_NAME = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _parse_ts(raw: str) -> datetime | None:
+    """Parse a shard row's timestamp, or None.
+
+    The gateway writes an offset-aware ISO-8601 string (``+00:00``), but a ``Z``
+    suffix is the same instant and ``fromisoformat`` only learned to accept it in
+    Python 3.11 — so normalise it here rather than silently dropping every row on
+    an older interpreter. A NAIVE timestamp is interpreted in the host's zone,
+    which is what ``astimezone`` on a naive value does anyway; it is stated here so
+    the behaviour is a decision rather than an accident.
+    """
+    if not raw:
+        return None
+    text = raw.strip()
+    if text.endswith(("Z", "z")):
+        text = f"{text[:-1]}+00:00"
+    try:
+        return datetime.fromisoformat(text)
+    except ValueError:
+        return None
+
+
 def _shards_in_window(directory: Path, days: int) -> list[Path]:
-    """In-window shards, filtered by FILENAME date — no stat per candidate."""
+    """In-window shards, filtered by FILENAME date — no stat per candidate.
+
+    The name must be exactly ``YYYY-MM-DD``: a stem that is not a date cannot be
+    compared against the cutoff (``"backup" > "2026-08-01"`` lexicographically, so
+    a loose check silently pulls in unrelated files), and the gateway never writes
+    one.
+    """
     if not directory.is_dir():
         return []
     span = days if days else MAX_LOOKBACK_DAYS
@@ -277,7 +319,7 @@ def _shards_in_window(directory: Path, days: int) -> list[Path]:
     return sorted(
         path
         for path in directory.glob("*.jsonl")
-        if path.is_file() and path.stem >= floor
+        if path.is_file() and _SHARD_NAME.match(path.stem) and path.stem >= floor
     )
 
 
@@ -340,13 +382,21 @@ def read_series(days: int = 7, tz_name: str | None = None) -> dict[str, Any]:
             stamp = str(row.get("ts") or "")
             if not stamp or stamp < cutoff:
                 continue
-            try:
-                when = datetime.fromisoformat(stamp).astimezone(tz)
-            except ValueError:
+            parsed = _parse_ts(stamp)
+            if parsed is None:
                 continue
-            try:
-                credits = float(row.get("credits") or 0.0)
-            except (TypeError, ValueError):
+            when = parsed.astimezone(tz)
+            raw_credits = row.get("credits")
+            # Numbers only. A STRING is refused rather than coerced: the gateway
+            # always writes a number, so a string means the row came from something
+            # else — and `float("nan")` would walk straight past the finite check
+            # below if strings were accepted. A missing key or ``None`` is a free
+            # turn (0.0), which is a real thing a turn can cost.
+            if raw_credits is None:
+                credits = 0.0
+            elif isinstance(raw_credits, (int, float)):  # bool is an int; True == 1.0
+                credits = float(raw_credits)
+            else:
                 continue
             # Shards written before the gateway's persist-side guard can hold bare
             # NaN / Infinity, which json.loads accepts. One would poison every

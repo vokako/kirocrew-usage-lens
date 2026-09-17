@@ -9,9 +9,10 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit",
-    "test:backend": "python3 backend/selftest.py",
-    "check": "npm run typecheck && npm run build && npm run test:backend && npm run test:ui",
-    "test:ui": "python3 test/fixture.py && node test/render.mjs"
+    "test:backend": "python3 -m unittest discover -s tests -q",
+    "check": "npm run typecheck && npm run build && npm test",
+    "test:ui": "python3 tests/fixture.py && node --test tests/frontend.test.mjs",
+    "test": "npm run test:backend && npm run test:ui"
   },
   "devDependencies": {
     "@types/react": "18.3.12",

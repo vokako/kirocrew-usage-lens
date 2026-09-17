@@ -45,5 +45,14 @@
       }
     ]
   },
-  "iconPath": "ui/icon.svg"
+  "iconPath": "ui/icon.svg",
+  "useCases": [
+    "Find out which scheduled job is quietly eating your monthly credits, and how much a change to its interval would save.",
+    "Tell a model repricing apart from doing more work, by reading credits per turn instead of credits per day.",
+    "Reconcile against Kiro's own meter for the current billing cycle and see how much of your spend never went through the gateway."
+  ],
+  "configuration": [
+    "No account linking and no configuration: the app reads the usage shards the gateway already writes under usage/tokens, and the billing comparison reuses the figures the gateway has already fetched.",
+    "Enabling it requires trusting its Python (agent.apps_trusted), because the backend runs inside the gateway process. It declares no storage, cron, spawn, or network permission."
+  ]
 }
