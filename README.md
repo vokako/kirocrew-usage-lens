@@ -27,7 +27,7 @@ or network permission.
 
 ```bash
 npm install          # esbuild + typescript, for the UI bundle
-npm run check        # typecheck, build ui/index.mjs, run the backend self-test
+npm run check        # typecheck, build ui/index.mjs, backend self-test, UI render test
 kirocrew app install /path/to/kirocrew-usage-lens
 kirocrew app enable usage-lens
 ```
@@ -95,6 +95,8 @@ app.json                 manifest: one UI page, one backend route hook, no other
 backend/usage_store.py   shard reader + fold (stdlib only)
 backend/routes.py        GET /series, GET /health  (paths are relative to /api/apps/usage-lens)
 backend/selftest.py      synthetic-shard self-test; no pytest, no gateway, no network
+test/fixture.py          dumps a real /series payload (or a synthetic one) for the UI test
+test/render.mjs          aggregation + SVG geometry, server-rendered against that payload
 src/                     the page: model.ts (arithmetic), charts.tsx (SVG), index.tsx (layout)
 scripts/build.mjs        esbuild -> ui/index.mjs, host modules external
 tools/export-html.py     standalone HTML export
