@@ -28,9 +28,14 @@ jobs:
           python3 - <<'PY'
           import ast, pathlib, sys
           allowed = {
-              'annotations', 'argparse', 'collections', 'contextlib', 'datetime', 'json',
-              'logging', 'math', 'os', 'pathlib', 're', 'sys', 'time', 'typing', 'zoneinfo',
-              'aiohttp', 'kiro_crew', 'usage_store',
+              # stdlib the backend is allowed to use
+              '__future__', 'argparse', 'asyncio', 'collections', 'contextlib', 'datetime',
+              'json', 'logging', 'math', 'os', 'pathlib', 're', 'stat', 'sys', 'tempfile',
+              'time', 'typing', 'unittest', 'zoneinfo',
+              # the gateway's own runtime, which the app runs inside
+              'aiohttp', 'kiro_crew',
+              # this package
+              'usage_store',
           }
           bad = []
           for path in pathlib.Path('backend').glob('*.py'):
