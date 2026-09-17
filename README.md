@@ -12,8 +12,13 @@ cost. The built-in Spend view rolls that up by model, channel, and session over 
   anonymous background rows a month. Usage Lens rolls those up by job id and names them
   from `crons.json`, so one job is one row.
 - **Per agent**, which nothing else surfaces — useful when several agents share one model.
-- **Any window at any granularity**: 24h / 3d / 7d / 14d / 30d / all, hourly or daily,
-  every figure compared against the preceding window of equal length.
+- **Any window at any granularity**: 24h / 3d / 7d / 14d / 30d / this billing cycle / all,
+  hourly or daily, every figure compared against the preceding window of equal length — and for
+  the cycle window, against the PRECEDING cycle, so "vs prior" means what the invoice means.
+- **Reconciliation against Kiro's own meter.** On the cycle window the page shows Kiro's
+  month-to-date credits beside what it can attribute locally, and names the remainder for
+  what it is: usage that did not go through this gateway (the Kiro IDE, or a `kiro-cli`
+  session you drive yourself). The two are not supposed to match; the gap is the finding.
 - **Credits per turn**, plotted per day. This is the cut that separates *the same work now
   costs more* from *we did more work* — the totals alone cannot tell you which happened,
   and a repricing is invisible in them until the month ends.
@@ -71,6 +76,11 @@ Design notes worth knowing before you extend it:
 - **Older shards can hold bare `NaN` / `Infinity`.** `json.loads` accepts those, and one
   would poison every total it touches and produce a body the browser cannot parse, so such
   rows are dropped.
+- **The cycle boundary is a UTC instant, not local midnight.** Kiro resets plan credits at the
+  start of the billing cycle and reports that instant (`nextDateReset`) in UTC, so a naive
+  local-month filter misfiles every turn in the offset band — eight hours' worth in
+  Asia/Shanghai, measured at ~350 credits on one real cycle. The backend does the month
+  arithmetic in UTC and converts the boundaries to the display zone before they leave.
 - **Hour keys are pre-converted to the requested zone** and compared as strings, so the
   UI's day boundaries fall where the reader's own midnight is (it passes the browser's
   zone). Window arithmetic anchors on the newest row, not `Date.now()`, so the view stays

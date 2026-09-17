@@ -61,6 +61,18 @@ export const STYLES = String.raw`
   .ul-sub { display:block; color:var(--muted); font-size:11px; }
   .ul-mono { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11.5px; }
 
+  /* Reconciliation against Kiro's own meter: three figures that must be read
+     together — what Kiro says, what this page can account for, and the remainder. */
+  .ul-recon { display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); margin:4px 0 2px; }
+  .ul-recon-cell { display:flex; flex-direction:column; gap:2px; min-width:0; }
+  .ul-recon-label { color:var(--muted); font-size:11px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; }
+  .ul-recon-value { color:var(--text-strong); font-size:21px; font-weight:650; letter-spacing:-.01em; font-variant-numeric:tabular-nums; }
+  .ul-recon-sub { color:var(--muted); font-size:11.5px; line-height:1.4; }
+
+  /* An unscheduled row under the job dimension is not a job — quieter, so the
+     scheduled rows it sits beside stay the ones the eye lands on. */
+  .ul-unscheduled { color:var(--muted); }
+
   /* The one interpretive element on the page: a repricing or a context blow-up
      shows as a credits-per-turn jump the totals alone do not explain. */
   .ul-flag {

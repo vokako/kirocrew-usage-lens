@@ -8,11 +8,37 @@
  * refetch.
  */
 
+export interface Cycle {
+  source: 'kiro-api' | 'assumed-utc-month'
+  resets: string
+  start_utc: string
+  /** Cycle boundaries as `YYYY-MM-DDTHH` keys on the payload's display clock. */
+  start_hour: string
+  prev_start_hour: string
+  end_hour: string
+}
+
+/** Kiro's own month-to-date figures, for comparison. Empty when unavailable. */
+export interface Official {
+  credits_used?: number
+  credits_plan?: number
+  credits_overage?: number
+  credits_covered?: number
+  percentage?: number
+  cost_usd?: number
+  overage_rate?: number
+  plan?: string
+  resets?: string
+  source?: string
+}
+
 export interface Series {
   generated_at: string
   tz: string
   window_days: number
   shards: number
+  cycle: Cycle
+  official: Official
   dims: Record<DimKey | 'hours', string[]>
   rows: number[][]
   labels: { session?: Record<string, string> }
@@ -22,6 +48,8 @@ export interface Series {
 export type DimKey = 'model' | 'surface' | 'agent' | 'job' | 'session'
 export type Metric = 'credits' | 'turns' | 'per_turn'
 export type Gran = 'hour' | 'day'
+/** A window is a number of days, or Kiro's own billing cycle, or everything. */
+export type WindowKey = '1' | '3' | '7' | '14' | '30' | 'cycle' | 'all'
 
 // Row layout, mirrored from backend/usage_store.read_series.
 export const COL = {
@@ -43,13 +71,14 @@ export const DIMENSIONS: { key: DimKey; label: string }[] = [
   { key: 'session', label: 'Session' },
 ]
 
-export const WINDOWS: { days: number; label: string }[] = [
-  { days: 1, label: '24h' },
-  { days: 3, label: '3d' },
-  { days: 7, label: '7d' },
-  { days: 14, label: '14d' },
-  { days: 30, label: '30d' },
-  { days: 0, label: 'All' },
+export const WINDOWS: { key: WindowKey; label: string }[] = [
+  { key: '1', label: '24h' },
+  { key: '3', label: '3d' },
+  { key: '7', label: '7d' },
+  { key: '14', label: '14d' },
+  { key: '30', label: '30d' },
+  { key: 'cycle', label: 'This cycle' },
+  { key: 'all', label: 'All' },
 ]
 
 export const METRICS: { key: Metric; label: string }[] = [
@@ -107,9 +136,24 @@ export function rowsBetween(series: Series, lo: string, hi: string): number[][] 
   })
 }
 
-/** Rows for the selected window, plus the equal-length window before it. */
-export function windowRows(series: Series, days: number) {
-  if (!days) return { current: series.rows, prior: [] as number[][], lo: '' }
+/**
+ * Rows for the selected window, plus the comparison window before it.
+ *
+ * For a day-count window the comparison is an equal-length lookback. For the
+ * billing cycle it is the PRECEDING cycle, not the preceding N days — that is what
+ * makes "vs prior" mean the same thing the invoice will.
+ */
+export function windowRows(series: Series, win: WindowKey) {
+  if (win === 'all') return { current: series.rows, prior: [] as number[][], lo: '' }
+  if (win === 'cycle') {
+    const { start_hour, prev_start_hour } = series.cycle
+    return {
+      current: rowsBetween(series, start_hour, ''),
+      prior: rowsBetween(series, prev_start_hour, start_hour),
+      lo: start_hour,
+    }
+  }
+  const days = Number(win)
   const lo = hourMinus(series, days * 24)
   const priorLo = hourMinus(series, days * 48)
   return {
@@ -117,6 +161,15 @@ export function windowRows(series: Series, days: number) {
     prior: rowsBetween(series, priorLo, lo),
     lo,
   }
+}
+
+/** Days spanned by a window. `all` is 0; the cycle counts from its own start. */
+export function windowDays(series: Series, win: WindowKey): number {
+  if (win === 'cycle') {
+    return Math.max(1, Math.round((Date.now() - Date.parse(series.cycle.start_utc)) / 86_400_000))
+  }
+  if (win === 'all') return 0
+  return Number(win)
 }
 
 export function total(rows: number[][]): Cell {
@@ -151,13 +204,17 @@ export const bucketOf = (series: Series, row: number[], gran: Gran): string => {
   return gran === 'hour' ? hour : hour.slice(0, 10)
 }
 
+/** Prefix the backend puts on a job-dimension row that is not a scheduled job. */
+export const UNSCHEDULED_PREFIX = 'Unscheduled · '
+
+export const isUnscheduled = (raw: string): boolean => raw.startsWith(UNSCHEDULED_PREFIX)
+
 /** Human label for a dimension value; sessions get their stored title. */
 export function labelOf(series: Series, dim: DimKey, raw: string): string {
   if (dim === 'session') {
     const title = series.labels.session?.[raw]
     return title ? title : raw
   }
-  if (dim === 'job') return raw || '(not scheduled)'
   return raw || '(unlabelled)'
 }
 
@@ -208,12 +265,10 @@ export interface UnitJump { name: string; was: number; now: number; ratio: numbe
  * you divide by turns. A ratio needs turns on BOTH sides, so a model that only
  * appeared in one window is skipped rather than reported as an infinite jump.
  */
-export function unitJumps(series: Series, days: number, threshold = 1.5): UnitJump[] {
-  const span = days || 3
-  const lo = hourMinus(series, span * 24)
-  const priorLo = hourMinus(series, span * 48)
-  const now = groupBy(rowsBetween(series, lo, ''), row => dimValue(series, row, 'model'))
-  const was = groupBy(rowsBetween(series, priorLo, lo), row => dimValue(series, row, 'model'))
+export function unitJumps(series: Series, win: WindowKey, threshold = 1.5): UnitJump[] {
+  const { current, prior } = windowRows(series, win === 'all' ? '30' : win)
+  const now = groupBy(current, row => dimValue(series, row, 'model'))
+  const was = groupBy(prior, row => dimValue(series, row, 'model'))
   const out: UnitJump[] = []
   for (const [name, cell] of now) {
     const before = was.get(name)

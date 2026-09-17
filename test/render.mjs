@@ -63,10 +63,34 @@ check('total credits reconcile with the rows', Math.abs(all.credits - reconciled
 check('total matches the backend figure', Math.abs(all.credits - series.totals.credits) < 0.02,
   `${all.credits} vs ${series.totals.credits}`)
 
-const { current, prior } = model.windowRows(series, 3)
+const { current, prior } = model.windowRows(series, '3')
 check('a 3d window is a strict subset', current.length > 0 && current.length <= series.rows.length)
 check('the prior window does not overlap the current one',
   current.every(row => !prior.includes(row)))
+
+console.log('billing-cycle window:')
+const cycle = model.windowRows(series, 'cycle')
+const startHour = series.cycle.start_hour
+check('the cycle window starts at the cycle boundary, on the display clock',
+  cycle.current.every(row => series.dims.hours[row[model.COL.hour]] >= startHour))
+check('nothing before the boundary leaks in',
+  !cycle.current.some(row => series.dims.hours[row[model.COL.hour]] < startHour))
+check('the comparison window is the PRECEDING cycle, not N days back',
+  cycle.prior.every(row => {
+    const hour = series.dims.hours[row[model.COL.hour]]
+    return hour >= series.cycle.prev_start_hour && hour < startHour
+  }))
+check('the two cycle windows are disjoint', !cycle.current.some(row => cycle.prior.includes(row)))
+check('cycle day count is at least 1', model.windowDays(series, 'cycle') >= 1)
+check('all-window has no comparison', model.windowRows(series, 'all').prior.length === 0)
+
+console.log('job dimension:')
+const jobs = model.ranked(series, cycle.current, cycle.prior, 'job')
+check('no job row is blank', jobs.every(row => row.key.length > 0))
+check('unscheduled rows are identifiable', jobs.some(row => model.isUnscheduled(row.key)))
+check('an unscheduled row names its kind',
+  jobs.filter(row => model.isUnscheduled(row.key))
+    .every(row => row.key.length > model.UNSCHEDULED_PREFIX.length))
 
 for (const dim of ['model', 'surface', 'agent', 'job', 'session']) {
   const rows = model.ranked(series, current, prior, dim)

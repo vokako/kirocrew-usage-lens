@@ -14,9 +14,9 @@ import { Doughnut, Legend, Lines, StackedBars, type SeriesDef } from './charts'
 import { STYLES } from './styles'
 import {
   COL, DIMENSIONS, METRICS, PALETTE, WINDOWS,
-  bucketOf, deltaPct, dimValue, fmt, groupBy, labelOf, metricOf, ranked,
-  subLabelOf, total, unitJumps, windowRows,
-  type DimKey, type Gran, type Metric, type Series,
+  bucketOf, deltaPct, dimValue, fmt, groupBy, isUnscheduled, labelOf, metricOf, ranked,
+  subLabelOf, total, unitJumps, windowDays, windowRows,
+  type DimKey, type Gran, type Metric, type Series, type WindowKey,
 } from './model'
 
 const STYLE_ID = 'usage-lens-styles'
@@ -79,7 +79,7 @@ export default function UsageLens() {
   const [series, setSeries] = useState<Series | null>(null)
   const [error, setError] = useState<string>('')
   const [loading, setLoading] = useState(true)
-  const [days, setDays] = useState(3)
+  const [days, setDays] = useState<WindowKey>('cycle')
   const [gran, setGran] = useState<Gran>('hour')
   const [dim, setDim] = useState<DimKey>('model')
   const [metric, setMetric] = useState<Metric>('credits')
@@ -163,6 +163,20 @@ export default function UsageLens() {
       unit,
       jumps: unitJumps(series, days),
       distinct: new Set(current.map(row => row[COL[dim]])).size,
+      // Reconciliation against Kiro's own month-to-date figure. Only meaningful for
+      // the cycle window: on any other window the two cover different spans, and a
+      // "coverage" percentage computed across mismatched spans would be a lie.
+      reconcile:
+        days === 'cycle' && typeof series.official.credits_used === 'number'
+          ? {
+              official: series.official.credits_used,
+              local: now.credits,
+              gap: series.official.credits_used - now.credits,
+              coveragePct: series.official.credits_used
+                ? (now.credits / series.official.credits_used) * 100
+                : null,
+            }
+          : null,
     }
   }, [series, days, gran, dim, metric])
 
@@ -184,7 +198,7 @@ export default function UsageLens() {
         <div className="ul-controls">
           <Seg
             label="Window"
-            options={WINDOWS.map(one => ({ key: one.days, label: one.label }))}
+            options={WINDOWS.map(one => ({ key: one.key, label: one.label }))}
             value={days}
             onChange={setDays}
           />
@@ -261,6 +275,54 @@ export default function UsageLens() {
               <StatCard label={`Distinct ${dimLabel.toLowerCase()}`} value={String(view.distinct)} />
             </div>
 
+            {view.reconcile && (
+              <Card style={{ marginBottom: 14 }}>
+                <CardTitle>Against Kiro's own meter — this billing cycle</CardTitle>
+                <div className="ul-recon">
+                  <div className="ul-recon-cell">
+                    <span className="ul-recon-label">Kiro reports</span>
+                    <span className="ul-recon-value">{fmt(view.reconcile.official)}</span>
+                    <span className="ul-recon-sub">
+                      {series.official.credits_plan
+                        ? `of ${fmt(series.official.credits_plan)} in ${series.official.plan || 'plan'}`
+                        : 'credits used'}
+                      {typeof series.official.cost_usd === 'number' && series.official.cost_usd > 0
+                        ? ` · $${series.official.cost_usd.toFixed(2)} overage`
+                        : ''}
+                    </span>
+                  </div>
+                  <div className="ul-recon-cell">
+                    <span className="ul-recon-label">This page can attribute</span>
+                    <span className="ul-recon-value">{fmt(view.reconcile.local)}</span>
+                    <span className="ul-recon-sub">
+                      {view.reconcile.coveragePct !== null
+                        ? `${view.reconcile.coveragePct.toFixed(1)}% of Kiro's figure`
+                        : 'from the local usage shards'}
+                    </span>
+                  </div>
+                  <div className="ul-recon-cell">
+                    <span className="ul-recon-label">Unattributed</span>
+                    <span className="ul-recon-value ul-up">{fmt(view.reconcile.gap)}</span>
+                    <span className="ul-recon-sub">Kiro usage that did not go through this gateway</span>
+                  </div>
+                </div>
+                <p className="ul-chart-note">
+                  The two will not match, and the gap is the useful part. Kiro's meter counts every
+                  credit on the account — the Kiro IDE, and any <span className="ul-mono">kiro-cli</span>{' '}
+                  session you drive yourself. This page can only see turns the gateway ran, so the
+                  difference is your usage from everywhere else. Cycle boundary:{' '}
+                  <span className="ul-mono">{series.cycle.start_utc.slice(0, 10)}</span> to{' '}
+                  <span className="ul-mono">{series.cycle.resets}</span> UTC
+                  {series.cycle.source === 'kiro-api'
+                    ? ", from Kiro's own reset date"
+                    : ' (assumed UTC calendar month — Kiro did not report a reset date)'}
+                  , shown on your clock from{' '}
+                  <span className="ul-mono">{series.cycle.start_hour.replace('T', ' ')}:00</span>.{' '}
+                  Day {windowDays(series, 'cycle')} of the cycle.
+                </p>
+              </Card>
+            )}
+
             <div className="ul-charts">
               <Card>
                 <CardTitle>{`${metricLabel} over time — ${gran === 'hour' ? 'hourly' : 'daily'}, stacked by ${dimLabel.toLowerCase()}`}</CardTitle>
@@ -322,7 +384,7 @@ export default function UsageLens() {
                       return (
                         <tr key={row.key}>
                           <td>
-                            <span className="ul-name">
+                            <span className={`ul-name${isUnscheduled(row.key) ? ' ul-unscheduled' : ''}`}>
                               <span
                                 className="ul-sw"
                                 style={{ background: view.colours.get(row.key) || 'var(--border-strong, var(--border))' }}
@@ -363,6 +425,10 @@ export default function UsageLens() {
                 <span className="ul-mono">bedrock</span> providers only, and are zero on ACP turns.
                 Subagent turns are attributed to the <span className="ul-mono">subagent</span> surface —
                 they carry no pointer back to the session that spawned them.
+                <br />
+                Under <strong>Scheduled job</strong>, a row prefixed{' '}
+                <span className="ul-mono">Unscheduled ·</span> is not a job: it is interactive chat,
+                a subagent, the task runner, or background maintenance, named by which one.
               </p>
             </Card>
           </>

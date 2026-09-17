@@ -51,6 +51,9 @@ ALLOWED_DAYS = (1, 3, 7, 14, 30, 0)
 # cost with no reader.
 MAX_LOOKBACK_DAYS = 60
 _CACHE_TTL_SECS = 60
+# Marks a job-dimension row that is not a scheduled job. One prefix, so the UI can
+# style them as a group and a reader can tell a job from everything else at a glance.
+UNSCHEDULED_PREFIX = "Unscheduled · "
 
 _cache: dict[tuple, tuple[float, dict[str, Any]]] = {}
 
@@ -82,6 +85,98 @@ def resolve_tz(name: str | None) -> ZoneInfo | timezone:
             pass
     local = datetime.now().astimezone().tzinfo
     return local if local is not None else timezone.utc
+
+
+def official_usage() -> dict[str, Any]:
+    """Kiro's OWN month-to-date figures, or ``{}`` when they are not available.
+
+    The gateway keeps these in-process: it reads them from ``GetUsageLimits`` on the
+    CodeWhisperer runtime service — the same API the Kiro IDE credit meter reads —
+    and falls back to scraping ``kiro-cli /usage``. Reading its cache costs nothing
+    and, critically, spends no credits; calling that API again from here would.
+
+    Wrapped in a broad except and degraded to ``{}`` on any failure: this reaches
+    into a host internal, so a refactor upstream must cost this app its comparison
+    figures, not its whole page.
+    """
+    try:
+        from kiro_crew.dashboard.handlers.usage import get_usage_cache
+
+        cache = get_usage_cache() or {}
+    except Exception:  # noqa: BLE001 — an unavailable comparison is not an error
+        return {}
+    if cache.get("credits_plan") is None:
+        return {}  # an {"available": False} sentinel is truthy but carries no figures
+    keep = (
+        "credits_used",
+        "credits_plan",
+        "credits_overage",
+        "credits_covered",
+        "percentage",
+        "cost_usd",
+        "overage_rate",
+        "plan",
+        "resets",
+        "source",
+    )
+    return {key: cache[key] for key in keep if key in cache}
+
+
+def _month_floor_utc(when: datetime) -> datetime:
+    return when.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+
+def _shift_months(when: datetime, months: int) -> datetime:
+    """The 1st of the month *months* away from *when*'s month, at 00:00."""
+    total = (when.year * 12 + when.month - 1) + months
+    year, month = divmod(total, 12)
+    return when.replace(year=year, month=month + 1, day=1, hour=0, minute=0, second=0, microsecond=0)
+
+
+def billing_cycle(tz: ZoneInfo | timezone, resets: str | None) -> dict[str, Any]:
+    """The current Kiro billing cycle, expressed as hour keys on the DISPLAY clock.
+
+    Kiro resets plan credits at the start of the billing cycle, and the reset instant
+    it reports (``nextDateReset``) is UTC — so the boundary is NOT local midnight on
+    the 1st. In Asia/Shanghai that is an eight-hour difference, which is exactly the
+    band of turns a naive local-month filter files under the wrong cycle.
+
+    The arithmetic therefore happens in UTC and the boundaries are converted to the
+    requested zone on the way out, as ``YYYY-MM-DDTHH`` keys the UI compares directly
+    against ``dims.hours``. ``prev_start_hour`` is the PRECEDING cycle rather than an
+    equal-length lookback, so a month-over-month reading lines up with the invoice.
+
+    ``source`` is ``kiro-api`` when the reset date came from Kiro and
+    ``assumed-utc-month`` when it did not — a UTC calendar month matches the
+    documented behaviour ("credits reset monthly", "requests pause until your limits
+    reset at the start of the next month"), but it is an assumption, and the UI says
+    so rather than implying an authoritative boundary.
+    """
+    end: datetime | None = None
+    if resets:
+        try:
+            end = datetime.strptime(str(resets)[:10], "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        except ValueError:
+            end = None
+    if end is not None:
+        source = "kiro-api"
+        start = _shift_months(end, -1)
+    else:
+        source = "assumed-utc-month"
+        start = _month_floor_utc(datetime.now(timezone.utc))
+        end = _shift_months(start, 1)
+
+    def hour_key(when: datetime) -> str:
+        return when.astimezone(tz).strftime("%Y-%m-%dT%H")
+
+    return {
+        "source": source,
+        "resets": end.date().isoformat(),
+        "start_utc": start.isoformat(),
+        "start_hour": hour_key(start),
+        "prev_start_hour": hour_key(_shift_months(start, -1)),
+        "end_hour": hour_key(end),
+    }
 
 
 def _cron_names(home: Path) -> dict[str, str]:
@@ -125,14 +220,50 @@ def _session_titles(home: Path, slots: set[str]) -> dict[str, str]:
     return out
 
 
-def _job_of(slot: str, names: dict[str, str]) -> str:
-    """The cron job label for *slot*, or '' when the slot is not scheduled work."""
+def _surface_group(surface: str, slot: str) -> str:
+    """What KIND of unscheduled work a row is, for the job dimension's other rows.
+
+    The job dimension answers "which scheduled job spent this", and everything
+    that is not a cron used to collapse into one bucket the UI rendered as
+    "(not scheduled)" — a single row holding interactive chat, subagents, the task
+    runner, and every background maintenance pass at once. That is a label, not an
+    answer: the biggest row on the page said only "not one of the things you asked
+    about". These rows now say what they actually were.
+
+    ``bg:*`` surfaces (consolidation, chat_nav, tips, …) collapse to one
+    ``background`` group deliberately: individually they are fractions of a credit,
+    and a dozen near-zero rows would push the rows that matter off the top.
+    """
+    if surface.startswith("bg:") or slot == "_bg":
+        return "background"
+    if surface == "subagent":
+        return "subagent"
+    if surface == "taskrunner":
+        return "task runner"
+    if surface == "dashboard" or slot.startswith("chat-"):
+        return "interactive chat"
+    if surface == "workflow" or surface == "workflow_pool":
+        return "workflow"
+    if surface and surface != "(unlabelled)":
+        return surface
+    return "other"
+
+
+def _job_of(slot: str, surface: str, names: dict[str, str]) -> str:
+    """The job-dimension value for *slot*.
+
+    A scheduled row gets its job's NAME, rolled up across runs: a job with
+    ``persistent_session=false`` gets a fresh slot per run
+    (``cron:<job id>:<run id>``), so the job id is the second segment either way
+    and that is the rollup key. An unscheduled row gets ``Unscheduled · <kind>``,
+    which keeps it visibly distinct from a real job while still saying what it was.
+    """
     if not slot.startswith("cron:"):
-        return ""
+        return f"{UNSCHEDULED_PREFIX}{_surface_group(surface, slot)}"
     parts = slot.split(":")
     job_id = parts[1] if len(parts) > 1 else ""
     if not job_id:
-        return "cron"
+        return f"{UNSCHEDULED_PREFIX}cron (unidentified)"
     name = names.get(job_id)
     return name if name else f"{job_id} (deleted)"
 
@@ -224,15 +355,16 @@ def read_series(days: int = 7, tz_name: str | None = None) -> dict[str, Any]:
                 continue
 
             slot = str(row.get("slot") or "")
+            surface = str(row.get("surface") or "(unlabelled)")
             if slot.startswith("chat-"):
                 chat_slots.add(slot)
             bucket = buckets[
                 (
                     when.strftime("%Y-%m-%dT%H"),
                     str(row.get("model") or "(unlabelled)"),
-                    str(row.get("surface") or "(unlabelled)"),
+                    surface,
                     str(row.get("agent") or "(default)"),
-                    _job_of(slot, names),
+                    _job_of(slot, surface, names),
                     slot or "(no slot)",
                 )
             ]
@@ -269,11 +401,14 @@ def read_series(days: int = 7, tz_name: str | None = None) -> dict[str, Any]:
             ]
         )
 
+    official = official_usage()
     payload = {
         "generated_at": datetime.now(tz).isoformat(timespec="seconds"),
         "tz": resolved_tz,
         "window_days": days,
         "shards": len(shards),
+        "cycle": billing_cycle(tz, official.get("resets")),
+        "official": official,
         "dims": dims,
         "rows": rows,
         "labels": {"session": _session_titles(home, chat_slots)},

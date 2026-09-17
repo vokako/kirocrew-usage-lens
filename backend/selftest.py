@@ -92,7 +92,55 @@ def main() -> int:
     check("per-run slots roll up to one job", jobs.count("nightly-sweep") == 1, str(jobs))
     check("job named from the registry", "nightly-sweep" in jobs, str(jobs))
     check("unknown job id marked deleted", any(j.startswith("zzz999") and "deleted" in j for j in jobs), str(jobs))
-    check("non-cron rows carry no job", "" in jobs, str(jobs))
+    check(
+        "an unscheduled row says what it WAS, not just 'not scheduled'",
+        "Unscheduled · interactive chat" in jobs,
+        str(jobs),
+    )
+    check("no empty job label survives", "" not in jobs, str(jobs))
+
+    print("unscheduled classification:")
+    cases = [
+        (("dashboard", "chat-7-1"), "interactive chat"),
+        (("subagent", "sub-abc"), "subagent"),
+        (("taskrunner", "task-1"), "task runner"),
+        (("bg:consolidation", "_bg"), "background"),
+        (("bg:tips", "chat-9-1"), "background"),
+        (("telegram:x:direct:1", "telegram:x:direct:1"), "telegram:x:direct:1"),
+    ]
+    for (surface, slot), expected in cases:
+        got = usage_store._job_of(slot, surface, {})
+        check(
+            f"{surface or '(none)'} -> {expected}",
+            got == f"{usage_store.UNSCHEDULED_PREFIX}{expected}",
+            got,
+        )
+
+    print("billing cycle:")
+    from datetime import timezone as _tz  # noqa: PLC0415
+    from zoneinfo import ZoneInfo as _ZI  # noqa: PLC0415
+
+    cycle = usage_store.billing_cycle(_ZI("Asia/Shanghai"), "2026-10-01")
+    check("reset date is honoured", cycle["resets"] == "2026-10-01", str(cycle))
+    check("cycle starts one month earlier, in UTC", cycle["start_utc"].startswith("2026-09-01T00:00:00"), str(cycle))
+    check(
+        "the UTC boundary is converted to the display clock, not assumed local midnight",
+        cycle["start_hour"] == "2026-09-01T08",
+        cycle["start_hour"],
+    )
+    check("previous cycle start is the month before", cycle["prev_start_hour"] == "2026-08-01T08", str(cycle))
+    check("source is attributed to Kiro", cycle["source"] == "kiro-api")
+    utc_cycle = usage_store.billing_cycle(_tz.utc, "2026-01-01")
+    check("a January reset walks back across the year", utc_cycle["start_hour"] == "2025-12-01T00", str(utc_cycle))
+    check("prev start too", utc_cycle["prev_start_hour"] == "2025-11-01T00", str(utc_cycle))
+    assumed = usage_store.billing_cycle(_tz.utc, None)
+    check("no reset date falls back to a UTC month, and says so", assumed["source"] == "assumed-utc-month")
+    check("assumed cycle still has both boundaries", bool(assumed["start_hour"] and assumed["resets"]))
+    check("a malformed reset date does not raise", usage_store.billing_cycle(_tz.utc, "not-a-date")["source"] == "assumed-utc-month")
+
+    print("payload extras:")
+    check("cycle block present", set(payload["cycle"]) >= {"start_hour", "prev_start_hour", "resets", "source"})
+    check("official block present (possibly empty)", isinstance(payload["official"], dict))
 
     print("labels and dimensions:")
     check("session title resolved", payload["labels"]["session"].get("chat-7-1") == "Ship the thing")
