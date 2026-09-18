@@ -136,20 +136,42 @@ export function rowsBetween(series: Series, lo: string, hi: string): number[][] 
   })
 }
 
+/** An hour key shifted by `hours`, on the same clock. */
+export function addHours(hourKey: string, hours: number): string {
+  if (!hourKey) return ''
+  const at = Date.parse(`${hourKey.slice(0, 10)}T${hourKey.slice(11, 13)}:00:00Z`)
+  return new Date(at + hours * 3_600_000).toISOString().slice(0, 13)
+}
+
+/** Whole hours from `from` to `to`, negative when `to` is earlier. */
+export function hoursBetween(from: string, to: string): number {
+  if (!from || !to) return 0
+  const a = Date.parse(`${from.slice(0, 10)}T${from.slice(11, 13)}:00:00Z`)
+  const b = Date.parse(`${to.slice(0, 10)}T${to.slice(11, 13)}:00:00Z`)
+  return Math.round((b - a) / 3_600_000)
+}
+
 /**
  * Rows for the selected window, plus the comparison window before it.
  *
  * For a day-count window the comparison is an equal-length lookback. For the
- * billing cycle it is the PRECEDING cycle, not the preceding N days — that is what
- * makes "vs prior" mean the same thing the invoice will.
+ * billing cycle it is the SAME ELAPSED SPAN of the preceding cycle, not the whole
+ * of it: on day 17 of a month, comparing against a complete previous month reports
+ * a fall of about a third no matter what the user did. The bound is clamped to the
+ * current cycle's start so a short previous cycle cannot reach forward into this one.
  */
 export function windowRows(series: Series, win: WindowKey) {
   if (win === 'all') return { current: series.rows, prior: [] as number[][], lo: '' }
   if (win === 'cycle') {
     const { start_hour, prev_start_hour } = series.cycle
+    const hours = series.dims.hours
+    const newest = hours.length ? hours[hours.length - 1] : start_hour
+    const elapsed = Math.max(1, hoursBetween(start_hour, newest) + 1)
+    let priorEnd = addHours(prev_start_hour, elapsed)
+    if (priorEnd > start_hour) priorEnd = start_hour
     return {
       current: rowsBetween(series, start_hour, ''),
-      prior: rowsBetween(series, prev_start_hour, start_hour),
+      prior: rowsBetween(series, prev_start_hour, priorEnd),
       lo: start_hour,
     }
   }

@@ -28,6 +28,27 @@ cost. The built-in Spend view rolls that up by model, channel, and session over 
 Read-only by construction: no writes, and the manifest declares no storage, cron, spawn,
 or network permission.
 
+## What it looks like
+
+![Usage Lens, broken down by model, with the reconciliation against Kiro's own meter](docs/screenshot-by-model.png)
+
+Broken down by **model**, on the current billing cycle. The banner at the top fired on its
+own: `gpt-5.6-sol` went from 11.1 to 22.1 credits per turn against the same elapsed span of
+the previous cycle, so the same work got twice as expensive — which the credits-per-day
+chart alone would have shown as "we did more". Underneath, Kiro's own meter is put beside
+what the page can account for, and the remainder is named rather than hidden.
+
+![The same cycle broken down by scheduled job, daily](docs/screenshot-by-job.png)
+
+The same cycle broken down by **scheduled job**, daily. One cron that runs every 30 minutes
+is 59.7% of the spend on its own; the rows prefixed `Unscheduled ·` are not jobs and say
+which kind of work they were. In the credits-per-turn chart below, that job's line is the
+one that steps up on 09-08 while every other line stays flat — a repricing, not more work.
+
+Both screenshots are the real built page rendered by the offline preview
+(`npm run preview`) over **demo data**, not anyone's real usage: a screenshot from a real
+payload would publish session titles, cron job names, and actual spend.
+
 ## Install
 
 ```bash
@@ -146,6 +167,24 @@ Design notes worth knowing before you extend it:
   zone). Window arithmetic anchors on the newest row, not `Date.now()`, so the view stays
   meaningful on a gateway that has been idle.
 
+## Offline preview
+
+```bash
+npm run preview      # builds and serves http://127.0.0.1:8977/
+```
+
+Renders the real page — the same `src/`, the same charts, the same arithmetic — outside the
+dashboard, against a deterministic demo payload. The two host modules the dashboard normally
+supplies through its import map are aliased to stand-ins under `tools/preview/`, and react is
+bundled in, so nothing needs a gateway, a token, or a network.
+
+Use it to iterate on the UI without restarting anything, and to take screenshots without
+publishing real usage data. `tools/demo_payload.py` regenerates the payload; it is
+seeded, so the same input always produces the same picture.
+
+> Changing the BACKEND still needs a gateway restart (see the note above). The preview only
+> covers the page.
+
 ## Standalone HTML export
 
 `tools/export-html.py` writes the same analysis as one self-contained HTML file — useful
@@ -172,6 +211,10 @@ app-registry.json          registry index so this repo can be added as an App St
 src/                     the page: model.ts (arithmetic), charts.tsx (SVG), index.tsx (layout)
 scripts/build.mjs        esbuild -> ui/index.mjs, host modules external
 tools/export-html.py     standalone HTML export
+tools/demo_payload.py    seeded demo payload for the offline preview
+tools/preview/           host-module stand-ins + the preview shell
+scripts/preview.mjs      builds and serves the offline preview
+docs/                    the screenshots this README embeds
 ui/index.mjs             the built artifact app.json points at (tracked on purpose)
 ```
 

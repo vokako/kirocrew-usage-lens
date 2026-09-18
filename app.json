@@ -54,5 +54,9 @@
   "configuration": [
     "No account linking and no configuration: the app reads the usage shards the gateway already writes under usage/tokens, and the billing comparison reuses the figures the gateway has already fetched.",
     "Enabling it requires trusting its Python (agent.apps_trusted), because the backend runs inside the gateway process. It declares no storage, cron, spawn, or network permission."
+  ],
+  "screenshots": [
+    "docs/screenshot-by-model.png",
+    "docs/screenshot-by-job.png"
   ]
 }

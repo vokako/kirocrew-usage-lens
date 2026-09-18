@@ -213,9 +213,35 @@ describe('windowRows', () => {
     assert.deepEqual(current.map(r => hours[r[0]]), ['2026-09-01T08', '2026-09-05T08', '2026-09-17T08'])
   })
 
-  test('the cycle comparison is the PRECEDING cycle, not N days back', () => {
-    const { prior } = model.windowRows(p, 'cycle')
-    assert.deepEqual(prior.map(r => hours[r[0]]), ['2026-08-20T08'])
+  test('the cycle comparison is the SAME ELAPSED SPAN of the preceding cycle', () => {
+    // Newest row is 2026-09-17T08, so 385 hours have elapsed since the boundary;
+    // the comparison covers the first 385 hours of the previous cycle only.
+    const p2 = payload({
+      hours: ['2026-08-01T08', '2026-08-20T08', '2026-09-01T08', '2026-09-17T08'],
+      rows: [0, 1, 2, 3].map(i => [i, 0, 0, 0, 0, 0, 10, 1]),
+    })
+    const { prior } = model.windowRows(p2, 'cycle')
+    assert.deepEqual(prior.map(r => p2.dims.hours[r[0]]), ['2026-08-01T08'])
+  })
+
+  test('a whole prior cycle is compared once the current one has run as long', () => {
+    const p2 = payload({
+      hours: ['2026-08-01T08', '2026-08-20T08', '2026-09-01T08', '2026-09-30T08'],
+      rows: [0, 1, 2, 3].map(i => [i, 0, 0, 0, 0, 0, 10, 1]),
+    })
+    const { prior } = model.windowRows(p2, 'cycle')
+    assert.deepEqual(prior.map(r => p2.dims.hours[r[0]]), ['2026-08-01T08', '2026-08-20T08'])
+  })
+
+  test('the comparison window never reaches into the current cycle', () => {
+    // A 28-day previous cycle plus a long-elapsed current one would overrun.
+    const p2 = payload({
+      hours: ['2026-08-15T08', '2026-09-01T08', '2026-12-31T08'],
+      rows: [0, 1, 2].map(i => [i, 0, 0, 0, 0, 0, 10, 1]),
+    })
+    const { current, prior } = model.windowRows(p2, 'cycle')
+    assert.ok(prior.every(r => p2.dims.hours[r[0]] < p2.cycle.start_hour))
+    assert.ok(!current.some(r => prior.includes(r)))
   })
 
   test('a row one hour before the boundary is excluded', () => {
@@ -239,6 +265,28 @@ describe('windowRows', () => {
     for (const { key } of model.WINDOWS) {
       assert.doesNotThrow(() => model.windowRows(p, key), `window ${key}`)
     }
+  })
+})
+
+describe('hour-key arithmetic', () => {
+  test('addHours moves forward and backward across a day boundary', () => {
+    assert.equal(model.addHours('2026-09-01T22', 3), '2026-09-02T01')
+    assert.equal(model.addHours('2026-09-01T01', -3), '2026-08-31T22')
+  })
+
+  test('addHours on an empty key is empty, not an invalid date', () => {
+    assert.equal(model.addHours('', 5), '')
+  })
+
+  test('hoursBetween is signed and whole', () => {
+    assert.equal(model.hoursBetween('2026-09-01T00', '2026-09-02T00'), 24)
+    assert.equal(model.hoursBetween('2026-09-02T00', '2026-09-01T00'), -24)
+    assert.equal(model.hoursBetween('2026-09-01T00', '2026-09-01T00'), 0)
+  })
+
+  test('hoursBetween with a missing bound is 0 rather than NaN', () => {
+    assert.equal(model.hoursBetween('', '2026-09-01T00'), 0)
+    assert.equal(model.hoursBetween('2026-09-01T00', ''), 0)
   })
 })
 
@@ -371,7 +419,7 @@ describe('unitJumps', () => {
   /** Two windows either side of the cycle boundary, with given per-turn costs. */
   const twoCycles = (nowPer, wasPer, { nowTurns = 4, wasTurns = 4 } = {}) =>
     payload({
-      hours: ['2026-08-15T08', '2026-09-10T08'],
+      hours: ['2026-08-05T08', '2026-09-10T08'],
       models: ['m1'],
       rows: [
         [0, 0, 0, 0, 0, 0, wasPer * wasTurns, wasTurns],
@@ -399,7 +447,7 @@ describe('unitJumps', () => {
 
   test('a model present in only one window is skipped, not reported as infinite', () => {
     const p = payload({
-      hours: ['2026-08-15T08', '2026-09-10T08'],
+      hours: ['2026-08-05T08', '2026-09-10T08'],
       models: ['old', 'new'],
       rows: [
         [0, 0, 0, 0, 0, 0, 40, 4],
@@ -411,7 +459,7 @@ describe('unitJumps', () => {
 
   test('a turnless window cannot produce a ratio', () => {
     const p = payload({
-      hours: ['2026-08-15T08', '2026-09-10T08'],
+      hours: ['2026-08-05T08', '2026-09-10T08'],
       rows: [
         [0, 0, 0, 0, 0, 0, 40, 0],
         [1, 0, 0, 0, 0, 0, 400, 4],
@@ -426,7 +474,7 @@ describe('unitJumps', () => {
 
   test('results are ordered by ratio, biggest first', () => {
     const p = payload({
-      hours: ['2026-08-15T08', '2026-09-10T08'],
+      hours: ['2026-08-05T08', '2026-09-10T08'],
       models: ['double', 'quadruple'],
       rows: [
         [0, 0, 0, 0, 0, 0, 40, 4],
@@ -510,6 +558,16 @@ describe('StackedBars', () => {
     )
     const texts = (markup.match(/class="ul-axis"/g) || []).length
     assert.ok(texts < 40, `expected thinned labels, got ${texts} axis texts`)
+  })
+
+  test('thousand-scale ticks are distinct, not two gridlines both reading "2k"', () => {
+    const markup = renderToStaticMarkup(
+      h(charts.StackedBars, { labels: ['a'], series: [series([2000])] }),
+    )
+    const ticks = [...markup.matchAll(/class="ul-axis"[^>]*>([^<]+)</g)].map(m => m[1])
+    const scaled = ticks.filter(t => t.endsWith('k'))
+    assert.equal(new Set(scaled).size, scaled.length, `duplicate tick labels: ${ticks.join(', ')}`)
+    assert.ok(scaled.includes('1.5k'), `expected a 1.5k tick, got ${ticks.join(', ')}`)
   })
 
   test('the label formatter is applied when given', () => {

@@ -12,7 +12,9 @@
     "test:backend": "python3 -m unittest discover -s tests -q",
     "check": "npm run typecheck && npm run build && npm test",
     "test:ui": "python3 tests/fixture.py && node --test tests/frontend.test.mjs",
-    "test": "npm run test:backend && npm run test:ui"
+    "test": "npm run test:backend && npm run test:ui",
+    "preview": "python3 tools/demo_payload.py && node scripts/preview.mjs --serve",
+    "build:preview": "python3 tools/demo_payload.py && node scripts/preview.mjs"
   },
   "devDependencies": {
     "@types/react": "18.3.12",

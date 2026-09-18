@@ -21,8 +21,18 @@ function niceCeil(value: number): number {
   return step * magnitude
 }
 
-const tickText = (value: number): string =>
-  value >= 1000 ? `${Math.round(value / 1000)}k` : String(Math.round(value * 10) / 10)
+/**
+ * Axis tick label.
+ *
+ * A `k` suffix with no decimal made 1,500 and 2,000 both read "2k", so an axis
+ * could show the same label on two gridlines. One decimal below 10k fixes that
+ * without widening the gutter for large values.
+ */
+const tickText = (value: number): string => {
+  if (value >= 10_000) return `${Math.round(value / 1000)}k`
+  if (value >= 1000) return `${(value / 1000).toFixed(1).replace(/\.0$/, '')}k`
+  return String(Math.round(value * 10) / 10)
+}
 
 /** Show at most `max` x labels, evenly spaced, always including the last. */
 function labelStride(count: number, max: number): number {

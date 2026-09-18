@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Usage Lens — offline preview</title>
+  <style>
+    /*
+     * The theme variables the dashboard injects, reproduced so the page renders
+     * against the same tokens it uses in the real host. Values approximate the
+     * default dark theme; the page itself references only the variables.
+     */
+    :root {
+      --bg: #0f1115;
+      --bg-elevated: #14171d;
+      --bg-hover: rgba(255, 255, 255, .045);
+      --card: #171a21;
+      --card-fg: #e6e8ee;
+      --text: #dfe3ea;
+      --text-strong: #f2f4f8;
+      --muted: #8b93a7;
+      --muted-strong: #a6aec2;
+      --border: #262b35;
+      --border-strong: #333a47;
+      --accent: #5b8dfb;
+      --accent-hover: #729dfc;
+      --accent-subtle: rgba(91, 141, 251, .14);
+      --aim-subtle: rgba(91, 141, 251, .12);
+      --ok: #79c98a;
+      --warn: #e0b252;
+      --danger: #f2777a;
+      --info: #4bc3d4;
+      --ok-subtle: rgba(121, 201, 138, .13);
+      --warn-subtle: rgba(224, 178, 82, .12);
+      --danger-subtle: rgba(242, 119, 122, .13);
+      --radius-lg: 8px;
+      --radius-md: 8px;
+      color-scheme: dark;
+    }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 13px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+            "Helvetica Neue", sans-serif;
+    }
+    #root { display: flex; flex-direction: column; min-height: 100%; }
+    /* A standing reminder that these numbers are not anyone's real usage. Kept in
+       the document flow at the top rather than floated over a corner, so a
+       full-page screenshot does not have it sitting on top of a chart. */
+    .preview-flag {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 24px;
+      border-bottom: 1px solid var(--border);
+      background: var(--warn-subtle);
+      color: var(--warn);
+      font-size: 11.5px; letter-spacing: .03em;
+    }
+  </style>
+</head>
+<body>
+  <div class="preview-flag">Offline preview — demo data, not real usage</div>
+  <div id="root"></div>
+  <script type="module" src="./preview.mjs"></script>
+</body>
+</html>
