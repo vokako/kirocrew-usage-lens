@@ -1,21 +1,29 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
      fill="none" role="img" aria-label="Usage Lens">
   <!--
-    House style, taken from the other app icons: a 24x24 box, fill="none", a single
-    neutral stroke colour, 1.5-1.6 weight, round caps, and few enough shapes to read
-    at the 16px the sidebar renders it at.
+    Palette follows the two-token convention the first-party icons use: an "ico a"
+    token for structure and an "ico b" token for the meaningful detail, which the
+    default themes bind to the muted grey and to the accent (Kiro purple, #8E48FF).
+    So the lens ring and its handle are grey and the BARS are purple: the bars are
+    the data, which is the part worth accenting.
 
-    One motif rather than two: the bars sit INSIDE the lens, so at 16px the shape
-    reads as a single object instead of a small chart with something next to it.
+    The values are HARDCODED rather than written as those CSS tokens. A first-party
+    icon under app-assets is inlined into the page and repaints from the theme; a
+    third-party app's icon is mounted as an img element pointing at
+    /apps/<name>/ui/icon.svg, and an img is a separate document that inherits nothing
+    from the page, so a token or currentColor resolves to black there. That is what
+    made the first version all but vanish on a dark sidebar. The grey and the purple
+    are picked to hold up on both a light and a dark background, since the sidebar
+    icon has no dark variant.
 
-    The colour is HARDCODED rather than `currentColor` on purpose. The dashboard
-    mounts a page icon as <img src="/apps/<name>/ui/icon.svg">, and an <img> is a
-    separate document — it inherits no colour from the page, so `currentColor`
-    resolved to black and the icon all but vanished on a dark sidebar. #737A8C is the
-    same grey the other third-party app icon uses.
+    Note for anyone editing this comment: an XML comment may not contain two
+    consecutive hyphens. Writing a CSS custom property with its leading hyphens in
+    here makes the file malformed, and a malformed SVG renders as a broken-image
+    placeholder rather than failing loudly. tests/test_assets.py guards it.
   -->
-  <circle cx="10.5" cy="10.5" r="6.6" stroke="#737A8C" stroke-width="1.5"/>
+  <circle cx="10.5" cy="10.5" r="6.6"
+          fill="#8E48FF" fill-opacity="0.16" stroke="#737A8C" stroke-width="1.5"/>
   <path d="M7.9 12.9v-2M10.5 12.9V7.6M13.1 12.9v-3.4"
-        stroke="#737A8C" stroke-width="1.5" stroke-linecap="round"/>
+        stroke="#8E48FF" stroke-width="1.7" stroke-linecap="round"/>
   <path d="M15.6 15.6 20.4 20.4" stroke="#737A8C" stroke-width="1.7" stroke-linecap="round"/>
 </svg>
