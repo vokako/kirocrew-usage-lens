@@ -16,7 +16,7 @@ import {
   COL, DIMENSIONS, METRICS, PALETTE, WINDOWS,
   bucketOf, deltaPct, dimValue, fmt, groupBy, isUnscheduled, labelOf, metricOf,
   normalizeSeries, ranked,
-  subLabelOf, total, unitJumps, windowDays, windowRows,
+  subLabelOf, total, windowDays, windowRows,
   type DimKey, type Gran, type Metric, type Series, type WindowKey,
 } from './model'
 
@@ -168,7 +168,6 @@ export default function UsageLens() {
       byBucket,
       unitLabels: days_,
       unit,
-      jumps: unitJumps(series, days),
       distinct: new Set(current.map(row => row[COL[dim]])).size,
       // Reconciliation against Kiro's own month-to-date figure. Only meaningful for
       // the cycle window: on any other window the two cover different spans, and a
@@ -251,25 +250,6 @@ export default function UsageLens() {
                 </div>
               </div>
             )}
-            {view.jumps.length > 0 && (
-              <div className="ul-flag">
-                <div>
-                  <div className="ul-flag-title">Unit cost jumped</div>
-                  <p className="ul-flag-body">
-                    Against the preceding window of equal length,{' '}
-                    {view.jumps.map((jump, index) => (
-                      <span key={jump.name}>
-                        {index > 0 ? '; ' : ''}
-                        <span className="ul-mono">{jump.name}</span> went from {fmt(jump.was)} to{' '}
-                        {fmt(jump.now)} credits per turn (×{jump.ratio.toFixed(1)})
-                      </span>
-                    ))}
-                    . Same work costing more looks like this; more work at the same price does not —
-                    check the credits-per-turn trend below to tell them apart.
-                  </p>
-                </div>
-              </div>
-            )}
 
             <div className="ul-kpis">
               <StatCard
@@ -330,18 +310,14 @@ export default function UsageLens() {
                   </div>
                 </div>
                 <p className="ul-chart-note">
-                  The two will not match, and the gap is the useful part. Kiro's meter counts every
-                  credit on the account — the Kiro IDE, and any <span className="ul-mono">kiro-cli</span>{' '}
-                  session you drive yourself. This page can only see turns the gateway ran, so the
-                  difference is your usage from everywhere else. Cycle boundary:{' '}
-                  <span className="ul-mono">{series.cycle.start_utc.slice(0, 10)}</span> to{' '}
-                  <span className="ul-mono">{series.cycle.resets}</span> UTC
-                  {series.cycle.source === 'kiro-api'
-                    ? ", from Kiro's own reset date"
-                    : ' (assumed UTC calendar month — Kiro did not report a reset date)'}
-                  , shown on your clock from{' '}
-                  <span className="ul-mono">{series.cycle.start_hour.replace('T', ' ')}:00</span>.{' '}
-                  Day {windowDays(series, 'cycle')} of the cycle.
+                  Cycle <span className="ul-mono">{series.cycle.start_hour.replace('T', ' ')}:00</span>
+                  {series.cycle.resets ? (
+                    <>
+                      {' '}to <span className="ul-mono">{series.cycle.resets}</span> UTC
+                    </>
+                  ) : null}
+                  {' · '}day {windowDays(series, 'cycle')}
+                  {series.cycle.source === 'kiro-api' ? '' : ' · boundary assumed'}
                 </p>
               </Card>
             )}
@@ -371,19 +347,11 @@ export default function UsageLens() {
                     color: view.colours.get(row.key)!,
                   }))}
                 />
-                <p className="ul-chart-note">
-                  Always credits, whichever metric is selected above: a share of a per-turn ratio has
-                  no meaning.
-                </p>
               </Card>
             </div>
 
             <Card style={{ marginBottom: 14 }}>
               <CardTitle>Credits per turn, by day</CardTitle>
-              <p className="ul-chart-note">
-                The price signal. A line that steps up while its work stays the same size is a
-                repricing or a context blow-up, not more work.
-              </p>
               <Lines labels={view.unitLabels.map(day => day.slice(5))} series={view.unit} />
             </Card>
 
@@ -442,16 +410,6 @@ export default function UsageLens() {
               </div>
               <p className="ul-foot">
                 {`${series.shards} daily shard${series.shards === 1 ? '' : 's'} · times in ${series.tz} · generated ${series.generated_at.replace('T', ' ').slice(0, 16)}`}
-                <br />
-                Credits are the only cost figure the gateway records for every turn: token counts and
-                USD cost are written by the <span className="ul-mono">claude_code</span> and{' '}
-                <span className="ul-mono">bedrock</span> providers only, and are zero on ACP turns.
-                Subagent turns are attributed to the <span className="ul-mono">subagent</span> surface —
-                they carry no pointer back to the session that spawned them.
-                <br />
-                Under <strong>Scheduled job</strong>, a row prefixed{' '}
-                <span className="ul-mono">Unscheduled ·</span> is not a job: it is interactive chat,
-                a subagent, the task runner, or background maintenance, named by which one.
               </p>
             </Card>
           </>

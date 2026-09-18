@@ -19,11 +19,8 @@ cost. The built-in Spend view rolls that up by model, channel, and session over 
   month-to-date credits beside what it can attribute locally, and names the remainder for
   what it is: usage that did not go through this gateway (the Kiro IDE, or a `kiro-cli`
   session you drive yourself). The two are not supposed to match; the gap is the finding.
-- **Credits per turn**, plotted per day. This is the cut that separates *the same work now
-  costs more* from *we did more work* — the totals alone cannot tell you which happened,
-  and a repricing is invisible in them until the month ends.
-- **An automatic flag** when a model's credits-per-turn rises by half or more against the
-  prior window.
+- **Credits per turn**, plotted per day — the cut that separates the same work costing more
+  from doing more work, which the totals alone cannot tell apart.
 
 Read-only by construction: no writes, and the manifest declares no storage, cron, spawn,
 or network permission.
@@ -32,18 +29,15 @@ or network permission.
 
 ![Usage Lens, broken down by model, with the reconciliation against Kiro's own meter](docs/screenshot-by-model.png)
 
-Broken down by **model**, on the current billing cycle. The banner at the top fired on its
-own: `gpt-5.6-sol` went from 11.1 to 22.1 credits per turn against the same elapsed span of
-the previous cycle, so the same work got twice as expensive — which the credits-per-day
-chart alone would have shown as "we did more". Underneath, Kiro's own meter is put beside
-what the page can account for, and the remainder is named rather than hidden.
+Broken down by **model**, on the current billing cycle: totals with their change against
+the same elapsed span of the previous cycle, Kiro's own meter beside what the page can
+account for, credits over time, share of credits, credits per turn, and the full table.
 
 ![The same cycle broken down by scheduled job, daily](docs/screenshot-by-job.png)
 
 The same cycle broken down by **scheduled job**, daily. One cron that runs every 30 minutes
 is 59.7% of the spend on its own; the rows prefixed `Unscheduled ·` are not jobs and say
-which kind of work they were. In the credits-per-turn chart below, that job's line is the
-one that steps up on 09-08 while every other line stays flat — a repricing, not more work.
+which kind of work they were.
 
 Both screenshots are the real built page rendered by the offline preview
 (`npm run preview`) over **demo data**, not anyone's real usage: a screenshot from a real
@@ -53,7 +47,7 @@ payload would publish session titles, cron job names, and actual spend.
 
 ```bash
 npm install          # esbuild + typescript, for the UI bundle
-npm run check        # typecheck, build ui/index.mjs, then 158 tests
+npm run check        # typecheck, build ui/index.mjs, then 181 tests
 kirocrew app install /path/to/kirocrew-usage-lens
 kirocrew app enable usage-lens
 ```
@@ -98,8 +92,8 @@ read the shards.
 
 ```bash
 npm test              # both suites
-npm run test:backend  # 84 cases, stdlib unittest, no pytest
-npm run test:ui       # 74 cases, node:test, no jsdom
+npm run test:backend  # 97 cases, stdlib unittest, no pytest
+npm run test:ui       # 84 cases, node:test, no jsdom
 npm run check         # typecheck + build + both suites
 ```
 
@@ -123,7 +117,8 @@ What the suites deliberately cover, because each one was a real defect or a real
 | Caching | a repeat read served from cache, an append invalidating it, window and timezone as separate keys, every shard deleted |
 | Payload invariants | row width, index bounds, credit and turn reconciliation, bucket dedup, JSON round-trip with `allow_nan=False`, sorted hour keys |
 | Scale | 20,000 rows folding in under a second, and folding actually reducing the row count |
-| Frontend | formatting at every threshold, per-turn on a turnless cell, tie-breaking, delta against a zero prior, the unit-jump threshold at exactly 1.5x, a model in only one window, and SVG geometry with no `NaN` for empty / single-point / all-null / all-zero / negative / 1e12 inputs |
+| Frontend | formatting at every threshold, per-turn on a turnless cell, tie-breaking, delta against a zero prior, hour-key arithmetic, a payload from an older backend, and SVG geometry with no `NaN` for empty / single-point / all-null / all-zero / negative / 1e12 inputs |
+| Assets | the icon parses as XML, carries no `--` in a comment, is square, has an `aria-label`, uses only the two sanctioned colours, and avoids `currentColor`; every manifest path exists and the registry index agrees with it |
 
 ## How it works
 

@@ -362,30 +362,3 @@ export function deltaPct(now: number, before: number): number | null {
   return before > 0 ? ((now - before) / before) * 100 : null
 }
 
-export interface UnitJump { name: string; was: number; now: number; ratio: number }
-
-/**
- * Models whose credits-per-turn rose by at least half against the preceding
- * window of equal length.
- *
- * This is the one thing totals cannot tell you: spend rising because you worked
- * more looks identical to spend rising because the same work costs more, until
- * you divide by turns. A ratio needs turns on BOTH sides, so a model that only
- * appeared in one window is skipped rather than reported as an infinite jump.
- */
-export function unitJumps(series: Series, win: WindowKey, threshold = 1.5): UnitJump[] {
-  const { current, prior } = windowRows(series, win === 'all' ? '30' : win)
-  const now = groupBy(current, row => dimValue(series, row, 'model'))
-  const was = groupBy(prior, row => dimValue(series, row, 'model'))
-  const out: UnitJump[] = []
-  for (const [name, cell] of now) {
-    const before = was.get(name)
-    if (!before || !before.turns || !cell.turns) continue
-    const nowPer = cell.credits / cell.turns
-    const wasPer = before.credits / before.turns
-    if (wasPer > 0 && nowPer / wasPer >= threshold) {
-      out.push({ name, was: wasPer, now: nowPer, ratio: nowPer / wasPer })
-    }
-  }
-  return out.sort((a, b) => b.ratio - a.ratio)
-}

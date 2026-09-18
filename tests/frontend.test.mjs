@@ -413,88 +413,6 @@ describe('labels', () => {
   })
 })
 
-/* -------------------------------------------------------------- unit jumps */
-
-describe('unitJumps', () => {
-  /** Two windows either side of the cycle boundary, with given per-turn costs. */
-  const twoCycles = (nowPer, wasPer, { nowTurns = 4, wasTurns = 4 } = {}) =>
-    payload({
-      hours: ['2026-08-05T08', '2026-09-10T08'],
-      models: ['m1'],
-      rows: [
-        [0, 0, 0, 0, 0, 0, wasPer * wasTurns, wasTurns],
-        [1, 0, 0, 0, 0, 0, nowPer * nowTurns, nowTurns],
-      ],
-    })
-
-  test('a tripling is reported with its ratio', () => {
-    const jumps = model.unitJumps(twoCycles(30, 10), 'cycle')
-    assert.equal(jumps.length, 1)
-    assert.equal(jumps[0].name, 'm1')
-    assert.equal(jumps[0].was, 10)
-    assert.equal(jumps[0].now, 30)
-    assert.equal(jumps[0].ratio, 3)
-  })
-
-  test('the threshold is inclusive at exactly 1.5x', () => {
-    assert.equal(model.unitJumps(twoCycles(15, 10), 'cycle').length, 1)
-    assert.equal(model.unitJumps(twoCycles(14.9, 10), 'cycle').length, 0)
-  })
-
-  test('a fall is not a jump', () => {
-    assert.equal(model.unitJumps(twoCycles(5, 10), 'cycle').length, 0)
-  })
-
-  test('a model present in only one window is skipped, not reported as infinite', () => {
-    const p = payload({
-      hours: ['2026-08-05T08', '2026-09-10T08'],
-      models: ['old', 'new'],
-      rows: [
-        [0, 0, 0, 0, 0, 0, 40, 4],
-        [1, 1, 0, 0, 0, 0, 400, 4],
-      ],
-    })
-    assert.deepEqual(model.unitJumps(p, 'cycle'), [])
-  })
-
-  test('a turnless window cannot produce a ratio', () => {
-    const p = payload({
-      hours: ['2026-08-05T08', '2026-09-10T08'],
-      rows: [
-        [0, 0, 0, 0, 0, 0, 40, 0],
-        [1, 0, 0, 0, 0, 0, 400, 4],
-      ],
-    })
-    assert.deepEqual(model.unitJumps(p, 'cycle'), [])
-  })
-
-  test('a free prior window cannot produce a ratio', () => {
-    assert.deepEqual(model.unitJumps(twoCycles(30, 0), 'cycle'), [])
-  })
-
-  test('results are ordered by ratio, biggest first', () => {
-    const p = payload({
-      hours: ['2026-08-05T08', '2026-09-10T08'],
-      models: ['double', 'quadruple'],
-      rows: [
-        [0, 0, 0, 0, 0, 0, 40, 4],
-        [0, 1, 0, 0, 0, 0, 40, 4],
-        [1, 0, 0, 0, 0, 0, 80, 4],
-        [1, 1, 0, 0, 0, 0, 160, 4],
-      ],
-    })
-    assert.deepEqual(model.unitJumps(p, 'cycle').map(j => j.name), ['quadruple', 'double'])
-  })
-
-  test('the "all" window probes 30 days rather than an unbounded span', () => {
-    assert.doesNotThrow(() => model.unitJumps(payload(), 'all'))
-  })
-
-  test('an empty payload reports no jumps', () => {
-    assert.deepEqual(model.unitJumps(payload({ hours: [], rows: [] }), 'cycle'), [])
-  })
-})
-
 /* ------------------------------------------------------------ version skew */
 
 describe('normalizeSeries', () => {
@@ -514,7 +432,6 @@ describe('normalizeSeries', () => {
     const { series, stale } = model.normalizeSeries(oldPayload())
     assert.equal(stale, true)
     assert.doesNotThrow(() => model.windowRows(series, 'cycle'))
-    assert.doesNotThrow(() => model.unitJumps(series, 'cycle'))
     assert.equal(model.windowRows(series, 'cycle').current.length, 2)
   })
 
