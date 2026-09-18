@@ -9,7 +9,7 @@
  */
 
 export interface Cycle {
-  source: 'kiro-api' | 'assumed-utc-month'
+  source: 'kiro-api' | 'assumed-utc-month' | 'assumed-local-month'
   resets: string
   start_utc: string
   /** Cycle boundaries as `YYYY-MM-DDTHH` keys on the payload's display clock. */
@@ -96,6 +96,92 @@ export const PALETTE = [
 ]
 
 export interface Cell { credits: number; turns: number }
+
+/* ------------------------------------------------------------ version skew
+ *
+ * Installing an app copies its files and re-registers its routes, but the
+ * gateway already holds the backend module in `sys.modules` — so between an
+ * update and the next `kirocrew restart`, a NEW page is served a payload from an
+ * OLD backend. That is a normal state, not a corrupt one, and the page must
+ * degrade through it: the first version of this file destructured
+ * `series.cycle` directly and took the whole page down with
+ * "Cannot destructure property 'start_hour' of undefined".
+ */
+
+const monthStart = (hourKey: string): string => `${hourKey.slice(0, 7)}-01T00`
+
+function previousMonthStart(hourKey: string): string {
+  const year = Number(hourKey.slice(0, 4))
+  const month = Number(hourKey.slice(5, 7))
+  const [y, m] = month === 1 ? [year - 1, 12] : [year, month - 1]
+  return `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-01T00`
+}
+
+/**
+ * A cycle derived from the payload's own hour keys, for a backend that sent none.
+ *
+ * The 1st of the month on the DISPLAY clock, which is not the same instant as
+ * Kiro's UTC reset — hence `assumed-local-month`, which the page shows rather than
+ * passing off as authoritative. Derived from the newest hour key instead of
+ * `Date.now()` so it needs no timezone conversion: those keys are already on the
+ * right clock.
+ */
+export function fallbackCycle(hours: string[]): Cycle {
+  const newest = hours.length ? hours[hours.length - 1] : new Date().toISOString().slice(0, 13)
+  const start = monthStart(newest)
+  return {
+    source: 'assumed-local-month',
+    resets: '',
+    start_utc: '',
+    start_hour: start,
+    prev_start_hour: previousMonthStart(start),
+    end_hour: '',
+  }
+}
+
+const DIM_KEYS = ['hours', 'model', 'surface', 'agent', 'job', 'session'] as const
+
+/**
+ * Coerce whatever the backend sent into a complete `Series`.
+ *
+ * `stale` is true when the payload lacks `cycle` — the one field only the newer
+ * backend writes — which is precisely the "restart pending" state, so the page can
+ * say so instead of quietly showing a month boundary nobody asked for.
+ */
+export function normalizeSeries(raw: unknown): { series: Series; stale: boolean } {
+  const input = (raw && typeof raw === 'object' ? raw : {}) as Record<string, any>
+  const dims = (input.dims && typeof input.dims === 'object' ? input.dims : {}) as Record<string, unknown>
+  const filled: Record<string, string[]> = {}
+  for (const key of DIM_KEYS) filled[key] = Array.isArray(dims[key]) ? (dims[key] as string[]) : []
+  const rows: number[][] = Array.isArray(input.rows)
+    ? input.rows.filter((row: unknown): row is number[] => Array.isArray(row) && row.length >= 8)
+    : []
+  const totals = input.totals && typeof input.totals === 'object' ? input.totals : {}
+  const stale = !(input.cycle && typeof input.cycle === 'object')
+  return {
+    stale,
+    series: {
+      generated_at: typeof input.generated_at === 'string' ? input.generated_at : '',
+      tz: typeof input.tz === 'string' ? input.tz : '',
+      window_days: Number(input.window_days) || 0,
+      shards: Number(input.shards) || 0,
+      cycle: stale ? fallbackCycle(filled.hours) : (input.cycle as Cycle),
+      official: input.official && typeof input.official === 'object' ? input.official : {},
+      dims: filled as Series['dims'],
+      rows,
+      labels: {
+        session:
+          input.labels && typeof input.labels === 'object' && input.labels.session
+            ? input.labels.session
+            : {},
+      },
+      totals: {
+        credits: Number((totals as any).credits) || 0,
+        turns: Number((totals as any).turns) || 0,
+      },
+    },
+  }
+}
 
 export const emptyCell = (): Cell => ({ credits: 0, turns: 0 })
 

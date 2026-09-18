@@ -1,11 +1,21 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24"
-     fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-  <!-- A lens over three bars: usage, magnified. Stroked with currentColor so the
-       dashboard's nav tints it like every other icon. -->
-  <path d="M3 20h18" />
-  <rect x="4.5" y="12.5" width="3.2" height="5" rx="0.8" />
-  <rect x="10.4" y="9" width="3.2" height="8.5" rx="0.8" />
-  <rect x="16.3" y="14" width="3.2" height="3.5" rx="0.8" />
-  <circle cx="15.2" cy="6.4" r="4.1" />
-  <path d="M18.3 9.5 21 12.2" />
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+     fill="none" role="img" aria-label="Usage Lens">
+  <!--
+    House style, taken from the other app icons: a 24x24 box, fill="none", a single
+    neutral stroke colour, 1.5-1.6 weight, round caps, and few enough shapes to read
+    at the 16px the sidebar renders it at.
+
+    One motif rather than two: the bars sit INSIDE the lens, so at 16px the shape
+    reads as a single object instead of a small chart with something next to it.
+
+    The colour is HARDCODED rather than `currentColor` on purpose. The dashboard
+    mounts a page icon as <img src="/apps/<name>/ui/icon.svg">, and an <img> is a
+    separate document — it inherits no colour from the page, so `currentColor`
+    resolved to black and the icon all but vanished on a dark sidebar. #737A8C is the
+    same grey the other third-party app icon uses.
+  -->
+  <circle cx="10.5" cy="10.5" r="6.6" stroke="#737A8C" stroke-width="1.5"/>
+  <path d="M7.9 12.9v-2M10.5 12.9V7.6M13.1 12.9v-3.4"
+        stroke="#737A8C" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M15.6 15.6 20.4 20.4" stroke="#737A8C" stroke-width="1.7" stroke-linecap="round"/>
 </svg>

@@ -495,6 +495,111 @@ describe('unitJumps', () => {
   })
 })
 
+/* ------------------------------------------------------------ version skew */
+
+describe('normalizeSeries', () => {
+  /** What the OLD backend sends: no `cycle`, no `official`. */
+  const oldPayload = () => {
+    const p = payload({ hours: ['2026-09-10T00', '2026-09-17T08'], rows: [
+      [0, 0, 0, 0, 0, 0, 10, 1],
+      [1, 0, 0, 0, 0, 0, 20, 2],
+    ] })
+    delete p.cycle
+    delete p.official
+    return p
+  }
+
+  test('the exact crash this guards: a cycle window over a payload with no cycle', () => {
+    // "Cannot destructure property 'start_hour' of 't.cycle' as it is undefined"
+    const { series, stale } = model.normalizeSeries(oldPayload())
+    assert.equal(stale, true)
+    assert.doesNotThrow(() => model.windowRows(series, 'cycle'))
+    assert.doesNotThrow(() => model.unitJumps(series, 'cycle'))
+    assert.equal(model.windowRows(series, 'cycle').current.length, 2)
+  })
+
+  test('a stale payload still ranks every dimension', () => {
+    const { series } = model.normalizeSeries(oldPayload())
+    const { current, prior } = model.windowRows(series, 'cycle')
+    for (const dim of ['model', 'surface', 'agent', 'job', 'session']) {
+      assert.doesNotThrow(() => model.ranked(series, current, prior, dim), dim)
+    }
+  })
+
+  test('a current payload is passed through and not marked stale', () => {
+    const { series, stale } = model.normalizeSeries(payload())
+    assert.equal(stale, false)
+    assert.equal(series.cycle.source, 'kiro-api')
+    assert.equal(series.cycle.start_hour, '2026-09-01T08')
+  })
+
+  test('junk input yields a complete, empty series rather than throwing', () => {
+    for (const input of [undefined, null, {}, [], 'text', 42, true]) {
+      const { series, stale } = model.normalizeSeries(input)
+      assert.equal(stale, true)
+      assert.deepEqual(series.rows, [])
+      assert.deepEqual(series.totals, { credits: 0, turns: 0 })
+      for (const dim of ['hours', 'model', 'surface', 'agent', 'job', 'session']) {
+        assert.ok(Array.isArray(series.dims[dim]), `${dim} must be an array`)
+      }
+      assert.doesNotThrow(() => model.windowRows(series, 'cycle'))
+    }
+  })
+
+  test('missing dimension tables become empty arrays', () => {
+    const { series } = model.normalizeSeries({ dims: { hours: ['2026-09-05T00'] }, rows: [] })
+    assert.deepEqual(series.dims.model, [])
+    assert.deepEqual(series.dims.job, [])
+  })
+
+  test('rows that are not 8-wide arrays are dropped', () => {
+    const { series } = model.normalizeSeries({
+      dims: { hours: ['2026-09-05T00'] },
+      rows: [[0, 0, 0, 0, 0, 0, 1, 1], [0, 0], 'nope', null, { a: 1 }],
+    })
+    assert.equal(series.rows.length, 1)
+  })
+
+  test('a non-numeric total is coerced rather than propagated as NaN', () => {
+    const { series } = model.normalizeSeries({ totals: { credits: 'lots', turns: null } })
+    assert.equal(series.totals.credits, 0)
+    assert.equal(series.totals.turns, 0)
+  })
+
+  test('missing labels do not break the session dimension', () => {
+    const { series } = model.normalizeSeries({ dims: { session: ['chat-1-1'] } })
+    assert.equal(model.labelOf(series, 'session', 'chat-1-1'), 'chat-1-1')
+  })
+})
+
+describe('fallbackCycle', () => {
+  test('starts at the 1st of the newest row\'s month, on the display clock', () => {
+    const cycle = model.fallbackCycle(['2026-09-03T00', '2026-09-17T08'])
+    assert.equal(cycle.start_hour, '2026-09-01T00')
+    assert.equal(cycle.prev_start_hour, '2026-08-01T00')
+  })
+
+  test('january walks back to the previous december', () => {
+    const cycle = model.fallbackCycle(['2026-01-09T05'])
+    assert.equal(cycle.start_hour, '2026-01-01T00')
+    assert.equal(cycle.prev_start_hour, '2025-12-01T00')
+  })
+
+  test('it says it is an assumption, and claims no reset date', () => {
+    const cycle = model.fallbackCycle(['2026-09-17T08'])
+    assert.equal(cycle.source, 'assumed-local-month')
+    assert.equal(cycle.resets, '')
+    assert.equal(cycle.start_utc, '')
+  })
+
+  test('no rows at all still yields usable bounds', () => {
+    const cycle = model.fallbackCycle([])
+    assert.match(cycle.start_hour, /^\d{4}-\d{2}-01T00$/)
+    assert.match(cycle.prev_start_hour, /^\d{4}-\d{2}-01T00$/)
+    assert.ok(cycle.prev_start_hour < cycle.start_hour)
+  })
+})
+
 /* ------------------------------------------------------------------- charts */
 
 const series = (values, name = 's1', color = '#5b8dfb') => ({ name, color, values })

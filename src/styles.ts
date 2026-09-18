@@ -81,6 +81,13 @@ export const STYLES = String.raw`
     border-left:3px solid var(--warn); border-radius:var(--radius-lg,8px);
     background:color-mix(in srgb, var(--warn) 8%, var(--card));
   }
+  /* The same shell in an informational key: a pending restart is a state to act on,
+     not a warning about the numbers being wrong. */
+  .ul-flag-info {
+    border-color:color-mix(in srgb, var(--info) 40%, var(--border));
+    border-left-color:var(--info);
+    background:color-mix(in srgb, var(--info) 8%, var(--card));
+  }
   .ul-flag-title { color:var(--text-strong); font-size:13px; font-weight:650; }
   .ul-flag-body { margin:3px 0 0; color:var(--text); font-size:12.5px; line-height:1.5; }
   .ul-foot { margin-top:14px; color:var(--muted); font-size:11px; line-height:1.6; }

@@ -14,7 +14,8 @@ import { Doughnut, Legend, Lines, StackedBars, type SeriesDef } from './charts'
 import { STYLES } from './styles'
 import {
   COL, DIMENSIONS, METRICS, PALETTE, WINDOWS,
-  bucketOf, deltaPct, dimValue, fmt, groupBy, isUnscheduled, labelOf, metricOf, ranked,
+  bucketOf, deltaPct, dimValue, fmt, groupBy, isUnscheduled, labelOf, metricOf,
+  normalizeSeries, ranked,
   subLabelOf, total, unitJumps, windowDays, windowRows,
   type DimKey, type Gran, type Metric, type Series, type WindowKey,
 } from './model'
@@ -77,6 +78,7 @@ export default function UsageLens() {
   const api = useAppApi()
 
   const [series, setSeries] = useState<Series | null>(null)
+  const [stale, setStale] = useState(false)
   const [error, setError] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [days, setDays] = useState<WindowKey>('cycle')
@@ -99,9 +101,14 @@ export default function UsageLens() {
     // days=0 fetches every retained shard, so each window (and its prior window
     // for comparison) is a client-side slice of one response.
     api
-      .get<Series>(`/api/apps/usage-lens/series?days=0${tz ? `&tz=${encodeURIComponent(tz)}` : ''}`)
+      .get<unknown>(`/api/apps/usage-lens/series?days=0${tz ? `&tz=${encodeURIComponent(tz)}` : ''}`)
       .then(payload => {
-        setSeries(payload)
+        // Normalised rather than trusted: a gateway that has not restarted since
+        // this app was updated still serves the OLD backend's payload, and the page
+        // has to render through that instead of throwing on a missing field.
+        const { series: normalised, stale: isStale } = normalizeSeries(payload)
+        setSeries(normalised)
+        setStale(isStale)
         setError('')
       })
       .catch((problem: unknown) => setError(problem instanceof Error ? problem.message : String(problem)))
@@ -228,6 +235,22 @@ export default function UsageLens() {
           />
         ) : (
           <>
+            {stale && (
+              <div className="ul-flag ul-flag-info">
+                <div>
+                  <div className="ul-flag-title">The gateway is still running an older copy of this app</div>
+                  <p className="ul-flag-body">
+                    Installing an app copies its files and re-registers its routes, but the backend
+                    module is already loaded in the gateway process — so this page is newer than the
+                    code answering it. Run <span className="ul-mono">kirocrew restart</span> to get
+                    the billing-cycle window aligned to Kiro's own reset date, the reconciliation
+                    against Kiro's meter, and the named <span className="ul-mono">Unscheduled ·</span>{' '}
+                    rows under Scheduled job. Until then the cycle is assumed to start on the 1st of
+                    the month on your clock, which is not the same instant as Kiro's UTC reset.
+                  </p>
+                </div>
+              </div>
+            )}
             {view.jumps.length > 0 && (
               <div className="ul-flag">
                 <div>
