@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 270" width="480" height="270"
+     role="img" aria-label="Usage Lens">
+  <!--
+    16:9 hero for the light appearance, at the 480x270 the first-party hero art uses.
+    The motif states the app in one picture: a lens over a spend chart, with the
+    inspected bars picked out in Kiro purple while the rest of the chart stays neutral.
+  -->
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f4f0fe"/>
+      <stop offset="100%" stop-color="#e2d8f8"/>
+    </linearGradient>
+    <linearGradient id="bar" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#a97bff"/>
+    </linearGradient>
+    <clipPath id="lensClip"><circle cx="196" cy="128" r="70"/></clipPath>
+  </defs>
+
+  <rect width="480" height="270" rx="12" fill="url(#bg)"/>
+  <circle cx="58" cy="44" r="22" fill="#c4b5fd" opacity="0.45"/>
+  <circle cx="432" cy="228" r="32" fill="#b69bfa" opacity="0.35"/>
+
+  <!-- The chart, running the full width: neutral outside the lens. -->
+  <g fill="#8b93a7" opacity="0.38">
+    <rect x="58" y="176" width="15" height="34" rx="4"/>
+    <rect x="82" y="162" width="15" height="48" rx="4"/>
+    <rect x="106" y="184" width="15" height="26" rx="4"/>
+    <rect x="130" y="150" width="15" height="60" rx="4"/>
+    <rect x="154" y="168" width="15" height="42" rx="4"/>
+    <rect x="178" y="138" width="15" height="72" rx="4"/>
+    <rect x="202" y="120" width="15" height="90" rx="4"/>
+    <rect x="226" y="146" width="15" height="64" rx="4"/>
+    <rect x="250" y="110" width="15" height="100" rx="4"/>
+    <rect x="274" y="132" width="15" height="78" rx="4"/>
+    <rect x="298" y="158" width="15" height="52" rx="4"/>
+    <rect x="322" y="126" width="15" height="84" rx="4"/>
+    <rect x="346" y="170" width="15" height="40" rx="4"/>
+    <rect x="370" y="144" width="15" height="66" rx="4"/>
+    <rect x="394" y="118" width="15" height="92" rx="4"/>
+  </g>
+  <rect x="52" y="212" width="366" height="2" rx="1" fill="#8b93a7" opacity="0.32"/>
+
+  <!-- Inside the lens the same bars are repainted: this is the part being read. -->
+  <g clip-path="url(#lensClip)">
+    <circle cx="196" cy="128" r="70" fill="#ffffff" opacity="0.72"/>
+    <g fill="url(#bar)">
+      <rect x="154" y="168" width="15" height="42" rx="4"/>
+      <rect x="178" y="138" width="15" height="72" rx="4"/>
+      <rect x="202" y="120" width="15" height="90" rx="4"/>
+      <rect x="226" y="146" width="15" height="64" rx="4"/>
+    </g>
+    <rect x="126" y="212" width="140" height="2" rx="1" fill="#7c3aed" opacity="0.45"/>
+  </g>
+
+  <circle cx="196" cy="128" r="70" fill="none" stroke="#6b7280" stroke-width="7"/>
+  <circle cx="196" cy="128" r="64" fill="none" stroke="#ffffff" stroke-width="2" opacity="0.55"/>
+  <path d="M247 179 L286 218" stroke="#6b7280" stroke-width="12" stroke-linecap="round"/>
+</svg>

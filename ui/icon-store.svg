@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512"
+     role="img" aria-label="Usage Lens">
+  <!--
+    The STORE icon: square, 512x512, and deliberately OPAQUE. The store requires an
+    icon that carries its own background so one file reads correctly on light and dark
+    chrome alike, which is what makes the dark variant optional rather than a latent
+    bug. The small transparent glyph the sidebar uses lives in icon.svg.
+
+    Same motif as that glyph, same division of colour: neutral structure for the lens,
+    Kiro purple for the bars, because the bars are the data.
+  -->
+  <defs>
+    <linearGradient id="tile" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#211a2e"/>
+      <stop offset="100%" stop-color="#171320"/>
+    </linearGradient>
+    <linearGradient id="bar" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#a97bff"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" fill="url(#tile)"/>
+  <circle cx="108" cy="96" r="76" fill="#8e48ff" opacity="0.07"/>
+  <circle cx="420" cy="430" r="96" fill="#8e48ff" opacity="0.06"/>
+
+  <!-- Lens: ring plus a faint purple wash, so the glass reads as glass. -->
+  <circle cx="224" cy="224" r="140" fill="#8e48ff" fill-opacity="0.12"/>
+  <circle cx="224" cy="224" r="140" fill="none" stroke="#9aa3b5" stroke-width="18"/>
+
+  <!-- Bars inside the lens. -->
+  <g fill="url(#bar)">
+    <rect x="156" y="240" width="30" height="58" rx="15"/>
+    <rect x="209" y="168" width="30" height="130" rx="15"/>
+    <rect x="262" y="206" width="30" height="92" rx="15"/>
+  </g>
+
+  <!-- Handle. -->
+  <path d="M326 326 L410 410" stroke="#9aa3b5" stroke-width="30" stroke-linecap="round"/>
+</svg>

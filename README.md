@@ -1,5 +1,7 @@
 # Usage Lens
 
+![Usage Lens](ui/hero-light.svg#gh-light-mode-only)![Usage Lens](ui/hero-dark.svg#gh-dark-mode-only)
+
 A Kiro Crew app that answers one question: **where did the credits go?**
 
 The gateway already writes one row per agent turn to `<data home>/usage/tokens/YYYY-MM-DD.jsonl`,
@@ -47,7 +49,7 @@ payload would publish session titles, cron job names, and actual spend.
 
 ```bash
 npm install          # esbuild + typescript, for the UI bundle
-npm run check        # typecheck, build ui/index.mjs, then 181 tests
+npm run check        # typecheck, build ui/index.mjs, then 191 tests
 kirocrew app install /path/to/kirocrew-usage-lens
 kirocrew app enable usage-lens
 ```
@@ -92,7 +94,7 @@ read the shards.
 
 ```bash
 npm test              # both suites
-npm run test:backend  # 97 cases, stdlib unittest, no pytest
+npm run test:backend  # 107 cases, stdlib unittest, no pytest
 npm run test:ui       # 84 cases, node:test, no jsdom
 npm run check         # typecheck + build + both suites
 ```
@@ -118,7 +120,7 @@ What the suites deliberately cover, because each one was a real defect or a real
 | Payload invariants | row width, index bounds, credit and turn reconciliation, bucket dedup, JSON round-trip with `allow_nan=False`, sorted hour keys |
 | Scale | 20,000 rows folding in under a second, and folding actually reducing the row count |
 | Frontend | formatting at every threshold, per-turn on a turnless cell, tie-breaking, delta against a zero prior, hour-key arithmetic, a payload from an older backend, and SVG geometry with no `NaN` for empty / single-point / all-null / all-zero / negative / 1e12 inputs |
-| Assets | the icon parses as XML, carries no `--` in a comment, is square, has an `aria-label`, uses only the two sanctioned colours, and avoids `currentColor`; every manifest path exists and the registry index agrees with it |
+| Assets | every SVG parses as XML and carries no `--` in a comment; the glyph is square, labelled, uses only the two sanctioned colours and avoids `currentColor`; the store icon is square, 512px and opaque; hero art is 16:9 and detail art 25:6 in both appearances, with light and dark genuinely different files; screenshots are landscape and ≥1000px wide; every declared art path is repo-relative, servable by the blob proxy, and exists; the backend hook resolves to a real function; no capability is declared that the app does not need; the registry index agrees with the manifest |
 
 ## How it works
 
@@ -211,6 +213,10 @@ tools/preview/           host-module stand-ins + the preview shell
 scripts/preview.mjs      builds and serves the offline preview
 docs/                    the screenshots this README embeds
 ui/index.mjs             the built artifact app.json points at (tracked on purpose)
+ui/icon.svg              16px sidebar glyph (transparent)
+ui/icon-store.svg        512px opaque store icon
+ui/hero-{light,dark}.svg          16:9 store art
+ui/hero-detail-{light,dark}.svg   25:6 detail banner
 ```
 
 ## Licence
