@@ -54,10 +54,21 @@ kirocrew app install /path/to/kirocrew-usage-lens
 kirocrew app enable usage-lens
 ```
 
-`kirocrew app enable` is refused while third-party app execution is off, because this app
-ships Python that runs inside the gateway process. Either trust this one app
-(`agent.apps_trusted`, in Settings) or set `agent.apps_allow_third_party=true` to allow
-every third-party app's code. That gate is deliberate — read `backend/` before you open it.
+### This app has an executable surface — read this before installing
+
+The backend is Python that runs **inside the gateway process**, so third-party app
+execution has to be allowed or the install stops at the policy gate: `kirocrew app enable`
+answers `app_execution_denied` and the page never appears. Two ways to open it, narrowest
+first:
+
+- **Trust this app alone** — add `usage-lens` to `agent.apps_trusted` in `config.json`
+  (Settings → Security in the dashboard).
+- **Allow every third-party app** — set `agent.apps_allow_third_party` to `true`. Wider
+  than you need for this one app.
+
+That gate is deliberate. `backend/` is about 400 lines, stdlib-only and read-only —
+read it before you open anything. The manifest declares no storage, cron, spawn, jobs or
+network permission, and the app writes nothing anywhere.
 
 The page then appears in the sidebar at `/usage-lens`.
 

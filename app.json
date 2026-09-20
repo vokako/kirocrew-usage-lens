@@ -6,11 +6,11 @@
   "author": "Kiro Crew community",
   "license": "MIT",
   "tags": [
+    "developer-tools",
     "usage",
     "cost",
     "credits",
-    "analytics",
-    "observability"
+    "analytics"
   ],
   "highlights": [
     "Credits broken down by model, surface, agent, cron job, or session — switch dimension without reloading",
