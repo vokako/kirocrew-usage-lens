@@ -52,6 +52,20 @@ ALLOWED_DAYS = (1, 3, 7, 14, 30, 0)
 # cost with no reader.
 MAX_LOOKBACK_DAYS = 60
 _CACHE_TTL_SECS = 60
+# Placeholder for a dimension the row does not carry.
+UNLABELLED = "(unlabelled)"
+# Placeholder for a MODEL the row does not carry, which is a narrower thing: the
+# gateway writes "" when the provider never reported a model for that turn (see
+# read_turn_model in its own usage handler, which documents "" and "auto" as two
+# distinct states). Every such row observed so far is a background maintenance pass
+# — consolidation, skill dedupe — whose persist call passes "" and relies on a
+# model_source that exposes no effective model. Naming it "not reported" says which
+# of the two it is instead of implying the app failed to read something.
+MODEL_NOT_REPORTED = "(not reported)"
+# The gateway's own value for a turn the backend's Auto mode routed without
+# disclosing a concrete id. It is NOT a model id and upstream is explicit that it
+# must never be presented as one; the UI labels it accordingly.
+MODEL_AUTO = "auto"
 # Marks a job-dimension row that is not a scheduled job. One prefix, so the UI can
 # style them as a group and a reader can tell a job from everything else at a glance.
 UNSCHEDULED_PREFIX = "Unscheduled · "
@@ -256,7 +270,7 @@ def _surface_group(surface: str, slot: str) -> str:
         return "interactive chat"
     if surface == "workflow" or surface == "workflow_pool":
         return "workflow"
-    if surface and surface != "(unlabelled)":
+    if surface and surface != UNLABELLED:
         return surface
     return "other"
 
@@ -405,13 +419,13 @@ def read_series(days: int = 7, tz_name: str | None = None) -> dict[str, Any]:
                 continue
 
             slot = str(row.get("slot") or "")
-            surface = str(row.get("surface") or "(unlabelled)")
+            surface = str(row.get("surface") or UNLABELLED)
             if slot.startswith("chat-"):
                 chat_slots.add(slot)
             bucket = buckets[
                 (
                     when.strftime("%Y-%m-%dT%H"),
-                    str(row.get("model") or "(unlabelled)"),
+                    str(row.get("model") or MODEL_NOT_REPORTED),
                     surface,
                     str(row.get("agent") or "(default)"),
                     _job_of(slot, surface, names),

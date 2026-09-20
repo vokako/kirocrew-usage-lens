@@ -154,6 +154,16 @@ src/charts.tsx                inline SVG with a fixed viewBox: no charting depen
 
 Design notes worth knowing before you extend it:
 
+- **Two model values are not model ids, and the gateway keeps them apart on purpose.**
+  Its `read_turn_model` writes `auto` for a turn the backend's Auto mode routed without
+  disclosing a concrete id, and `""` for a turn whose model the provider never reported
+  at all. This app renders the second as `(not reported)` and labels both so neither
+  reads as an id under a column headed *Model*. On the account this was built against,
+  every `""` row was a background maintenance pass (`bg:consolidation`,
+  `bg:skill_dedupe`) — 7.8% of rows but ~1% of credits. The two background persist paths
+  are asymmetric upstream: `run_bg_oneliner` records `session.served_model`, while the
+  consolidation path passes `""` and relies on a `model_source` that exposes no
+  effective model.
 - **`credits` is the only cost metric that is always populated.** `cost` (USD) and the
   `input` / `output` token counts are written by the `claude_code` and `bedrock` providers
   only; on ACP turns they are `0`, so a token- or dollar-based view reads as "free" on the

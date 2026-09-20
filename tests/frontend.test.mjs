@@ -406,6 +406,22 @@ describe('labels', () => {
     assert.equal(model.labelOf(payload(), 'model', ''), '(unlabelled)')
   })
 
+  test('neither non-id model value is shown as if it were a model id', () => {
+    const p = payload({ models: ['auto', '(not reported)'] })
+    assert.match(model.labelOf(p, 'model', 'auto'), /^Auto —/)
+    assert.equal(model.labelOf(p, 'model', '(not reported)'), 'No model reported')
+  })
+
+  test('a real model id is left exactly as the gateway wrote it', () => {
+    const p = payload({ models: ['gpt-5.6-sol'] })
+    assert.equal(model.labelOf(p, 'model', 'gpt-5.6-sol'), 'gpt-5.6-sol')
+  })
+
+  test('the relabelling applies only to the model dimension', () => {
+    const p = payload({ agents: ['auto'] })
+    assert.equal(model.labelOf(p, 'agent', 'auto'), 'auto')
+  })
+
   test('unscheduled job rows are identifiable and carry a kind', () => {
     assert.ok(model.isUnscheduled(`${model.UNSCHEDULED_PREFIX}subagent`))
     assert.ok(!model.isUnscheduled('nightly-sweep'))

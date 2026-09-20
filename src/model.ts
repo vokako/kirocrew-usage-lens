@@ -317,12 +317,26 @@ export const UNSCHEDULED_PREFIX = 'Unscheduled · '
 
 export const isUnscheduled = (raw: string): boolean => raw.startsWith(UNSCHEDULED_PREFIX)
 
+/*
+ * Two model values are not model ids, and the gateway keeps them distinct on purpose
+ * (its `read_turn_model` documents both): `auto` means the backend's Auto mode routed
+ * the turn and disclosed no concrete id, and the backend's `(not reported)` means the
+ * provider reported no model at all — every such row observed so far is a background
+ * maintenance pass. Showing either as-is under a column headed "Model" reads as an id,
+ * so each gets a label saying what it actually is.
+ */
+const MODEL_LABELS: Record<string, string> = {
+  auto: 'Auto — backend chose, no id reported',
+  '(not reported)': 'No model reported',
+}
+
 /** Human label for a dimension value; sessions get their stored title. */
 export function labelOf(series: Series, dim: DimKey, raw: string): string {
   if (dim === 'session') {
     const title = series.labels.session?.[raw]
     return title ? title : raw
   }
+  if (dim === 'model' && MODEL_LABELS[raw]) return MODEL_LABELS[raw]
   return raw || '(unlabelled)'
 }
 

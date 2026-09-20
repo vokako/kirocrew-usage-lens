@@ -760,9 +760,31 @@ class TestPayloadInvariants(Base):
             json.dumps({"_type": "tokens", "ts": self.at(), "credits": 1.0}),
         )
         payload = self.read()
-        self.assertIn("(unlabelled)", payload["dims"]["model"])
+        self.assertIn(store.MODEL_NOT_REPORTED, payload["dims"]["model"])
+        self.assertIn(store.UNLABELLED, payload["dims"]["surface"])
         self.assertIn("(default)", payload["dims"]["agent"])
         self.assertIn("(no slot)", payload["dims"]["session"])
+
+    def test_a_model_the_provider_never_reported_is_named_as_such(self) -> None:
+        """Every such row observed in the wild is a background maintenance pass."""
+        self.fx.write(
+            self.day_of(),
+            row(self.at(), model="", surface="bg:consolidation", slot="_bg", agent="lite", credits=0.6),
+        )
+        payload = self.read()
+        self.assertIn(store.MODEL_NOT_REPORTED, payload["dims"]["model"])
+        self.assertNotIn(store.UNLABELLED, payload["dims"]["model"])
+
+    def test_auto_is_preserved_verbatim_not_folded_into_the_placeholder(self) -> None:
+        """`auto` and `""` are two different states the gateway keeps distinct."""
+        self.fx.write(
+            self.day_of(),
+            row(self.at(), model=store.MODEL_AUTO, credits=1.0),
+            row(self.at(), model="", credits=1.0),
+        )
+        models = self.read()["dims"]["model"]
+        self.assertIn(store.MODEL_AUTO, models)
+        self.assertIn(store.MODEL_NOT_REPORTED, models)
 
 
 class TestScale(Base):
